@@ -1,38 +1,50 @@
 package com.llburgers.domain;
 
+import com.llburgers.domain.enums.Role;
 import jakarta.persistence.*;
 import lombok.*;
+import lombok.experimental.SuperBuilder;
+import org.hibernate.annotations.CreationTimestamp;
 
-import java.util.List;
+import java.time.LocalDateTime;
+import java.util.UUID;
 
 @Entity
 @Table(name = "users")
-@Data
-@Builder
+@Inheritance(strategy = InheritanceType.JOINED)
+@Getter
+@Setter
 @NoArgsConstructor
 @AllArgsConstructor
-public class User {
+@SuperBuilder
+public abstract class User {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
+    @GeneratedValue(strategy = GenerationType.UUID)
+    @Column(name = "id", updatable = false, nullable = false)
+    private UUID id;
 
-    private String fullName;
+    @Column(nullable = false)
+    private String name;
+
+    @Column(nullable = false, unique = true)
     private String email;
-    private String phone;
-    private String password; // hashed
 
-    @Builder.Default
-    private boolean isActive = true;
+    @Column(nullable = false)
+    private String password;
+
+    @Column(unique = true)
+    private String phone;
 
     @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
     private Role role;
 
-    // For customers: link to orders
-    @OneToMany(mappedBy = "customer", cascade = CascadeType.ALL)
-    private List<Order> orders;
+    @Column(nullable = false)
+    @Builder.Default
+    private boolean active = true;
 
-    // For notifications
-    @OneToMany(mappedBy = "user", cascade = CascadeType.ALL)
-    private List<Notification> notifications;
+    @CreationTimestamp
+    @Column(name = "created_at", nullable = false, updatable = false)
+    private LocalDateTime createdAt;
 }

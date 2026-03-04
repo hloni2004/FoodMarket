@@ -1,29 +1,46 @@
 package com.llburgers.domain;
 
+import com.llburgers.domain.enums.NotificationStatus;
+import com.llburgers.domain.enums.NotificationType;
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.CreationTimestamp;
 
 import java.time.LocalDateTime;
+import java.util.UUID;
 
 @Entity
 @Table(name = "notifications")
-@Data
-@Builder
+@Getter
+@Setter
 @NoArgsConstructor
 @AllArgsConstructor
+@Builder
 public class Notification {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
+    @GeneratedValue(strategy = GenerationType.UUID)
+    @Column(name = "id", updatable = false, nullable = false)
+    private UUID id;
 
-    private String message;
+    /**
+     * Nullable — business-level notifications (BUSINESS_OPENED / BUSINESS_CLOSED)
+     * are not tied to a specific order.
+     */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "order_id")
+    private Order order;
 
-    private boolean isRead;
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private NotificationType type;
 
-    @ManyToOne
-    @JoinColumn(name = "user_id")
-    private User user;
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    @Builder.Default
+    private NotificationStatus status = NotificationStatus.PENDING;
 
-    private LocalDateTime createdAt;
+    @CreationTimestamp
+    @Column(nullable = false, updatable = false)
+    private LocalDateTime timestamp;
 }
