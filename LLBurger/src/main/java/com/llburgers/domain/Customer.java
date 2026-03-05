@@ -17,6 +17,7 @@ import java.util.List;
 @NoArgsConstructor
 @AllArgsConstructor
 @SuperBuilder
+@ToString(callSuper = true, exclude = "orders")
 public class Customer extends User {
 
     @Enumerated(EnumType.STRING)

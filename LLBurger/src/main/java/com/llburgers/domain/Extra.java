@@ -15,6 +15,7 @@ import java.util.UUID;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
+@ToString(exclude = "orderItemExtras")
 public class Extra {
 
     @Id
@@ -27,6 +28,9 @@ public class Extra {
 
     @Column(nullable = false, precision = 10, scale = 2)
     private BigDecimal price;
+
+    @Column(name = "image_url")
+    private String imageUrl;
 
     @Column(nullable = false)
     @Builder.Default

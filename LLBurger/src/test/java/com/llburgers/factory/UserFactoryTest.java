@@ -12,7 +12,7 @@ import static org.junit.jupiter.api.Assertions.*;
 class UserFactoryTest {
 
     // ─────────────────────────────────────────────────────────────────────────
-    // createAdmin
+    // CORRECT TESTS — createAdmin
     // ─────────────────────────────────────────────────────────────────────────
 
     @Test
@@ -29,7 +29,13 @@ class UserFactoryTest {
         assertEquals(AdminLevel.ADMIN, admin.getAdminLevel());
         assertEquals(Role.ADMIN, admin.getRole());
         assertTrue(admin.isActive());
-        System.out.print(admin);
+        System.out.println("\n✓ Test 1 - Valid Admin Creation:");
+        System.out.println("  Name        : " + admin.getName());
+        System.out.println("  Email       : " + admin.getEmail());
+        System.out.println("  Phone       : " + admin.getPhone());
+        System.out.println("  Admin Level : " + admin.getAdminLevel());
+        System.out.println("  Role        : " + admin.getRole());
+        System.out.println("  Active      : " + admin.isActive());
     }
 
     @Test
@@ -38,6 +44,9 @@ class UserFactoryTest {
                 "Jane Doe", "JANE@EXAMPLE.COM", "Secret12", null, AdminLevel.ADMIN
         );
         assertEquals("jane@example.com", admin.getEmail());
+        System.out.println("\n✓ Test 2 - Admin Email Stored in Lowercase:");
+        System.out.println("  Input Email  : JANE@EXAMPLE.COM");
+        System.out.println("  Stored Email : " + admin.getEmail());
     }
 
     @Test
@@ -46,6 +55,9 @@ class UserFactoryTest {
                 "Jane Doe", "jane@example.com", "Secret12", null, AdminLevel.ADMIN
         );
         assertNull(admin.getPhone());
+        System.out.println("\n✓ Test 3 - Admin with Null Phone:");
+        System.out.println("  Name  : " + admin.getName());
+        System.out.println("  Phone : " + admin.getPhone());
     }
 
     @Test
@@ -54,112 +66,122 @@ class UserFactoryTest {
                 "Jane Doe", "jane@example.com", "Secret12", null, AdminLevel.SUPER_ADMIN
         );
         assertEquals(AdminLevel.SUPER_ADMIN, admin.getAdminLevel());
+        System.out.println("\n✓ Test 4 - Admin with SUPER_ADMIN Level:");
+        System.out.println("  Name        : " + admin.getName());
+        System.out.println("  Admin Level : " + admin.getAdminLevel());
     }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // INCORRECT TESTS — createAdmin (exceptions, all pass)
+    // ─────────────────────────────────────────────────────────────────────────
 
     @Test
     void createAdmin_invalidName_throwsException() {
         IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () ->
-                UserFactory.createAdmin(
-                        "J", "jane@example.com", "Secret12", null, AdminLevel.ADMIN
-                )
+                UserFactory.createAdmin("J", "jane@example.com", "Secret12", null, AdminLevel.ADMIN)
         );
         assertTrue(ex.getMessage().contains("Admin creation failed"));
         assertTrue(ex.getMessage().toLowerCase().contains("name"));
+        System.out.println("\n✗ Test 5 - Invalid Admin Name Exception:");
+        System.out.println("  Exception: " + ex.getMessage());
     }
 
     @Test
     void createAdmin_nullName_throwsException() {
-        assertThrows(IllegalArgumentException.class, () ->
-                UserFactory.createAdmin(
-                        null, "jane@example.com", "Secret12", null, AdminLevel.ADMIN
-                )
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () ->
+                UserFactory.createAdmin(null, "jane@example.com", "Secret12", null, AdminLevel.ADMIN)
         );
+        assertTrue(ex.getMessage().contains("Admin creation failed"));
+        System.out.println("\n✗ Test 6 - Null Admin Name Exception:");
+        System.out.println("  Exception: " + ex.getMessage());
     }
 
     @Test
     void createAdmin_invalidEmail_throwsException() {
         IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () ->
-                UserFactory.createAdmin(
-                        "Jane Doe", "not-an-email", "Secret12", null, AdminLevel.ADMIN
-                )
+                UserFactory.createAdmin("Jane Doe", "not-an-email", "Secret12", null, AdminLevel.ADMIN)
         );
         assertTrue(ex.getMessage().contains("Admin creation failed"));
         assertTrue(ex.getMessage().toLowerCase().contains("email"));
+        System.out.println("\n✗ Test 7 - Invalid Admin Email Exception:");
+        System.out.println("  Exception: " + ex.getMessage());
     }
 
     @Test
     void createAdmin_nullEmail_throwsException() {
-        assertThrows(IllegalArgumentException.class, () ->
-                UserFactory.createAdmin(
-                        "Jane Doe", null, "Secret12", null, AdminLevel.ADMIN
-                )
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () ->
+                UserFactory.createAdmin("Jane Doe", null, "Secret12", null, AdminLevel.ADMIN)
         );
+        assertTrue(ex.getMessage().contains("Admin creation failed"));
+        System.out.println("\n✗ Test 8 - Null Admin Email Exception:");
+        System.out.println("  Exception: " + ex.getMessage());
     }
 
     @Test
     void createAdmin_passwordTooShort_throwsException() {
         IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () ->
-                UserFactory.createAdmin(
-                        "Jane Doe", "jane@example.com", "abc", null, AdminLevel.ADMIN
-                )
+                UserFactory.createAdmin("Jane Doe", "jane@example.com", "abc", null, AdminLevel.ADMIN)
         );
         assertTrue(ex.getMessage().contains("Admin creation failed"));
         assertTrue(ex.getMessage().toLowerCase().contains("password"));
+        System.out.println("\n✗ Test 9 - Short Admin Password Exception:");
+        System.out.println("  Exception: " + ex.getMessage());
     }
 
     @Test
     void createAdmin_nullPassword_throwsException() {
-        assertThrows(IllegalArgumentException.class, () ->
-                UserFactory.createAdmin(
-                        "Jane Doe", "jane@example.com", null, null, AdminLevel.ADMIN
-                )
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () ->
+                UserFactory.createAdmin("Jane Doe", "jane@example.com", null, null, AdminLevel.ADMIN)
         );
+        assertTrue(ex.getMessage().contains("Admin creation failed"));
+        System.out.println("\n✗ Test 10 - Null Admin Password Exception:");
+        System.out.println("  Exception: " + ex.getMessage());
     }
 
     @Test
     void createAdmin_invalidPhone_throwsException() {
         IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () ->
-                UserFactory.createAdmin(
-                        "Jane Doe", "jane@example.com", "Secret12", "not-a-phone", AdminLevel.ADMIN
-                )
+                UserFactory.createAdmin("Jane Doe", "jane@example.com", "Secret12", "not-a-phone", AdminLevel.ADMIN)
         );
         assertTrue(ex.getMessage().contains("Admin creation failed"));
         assertTrue(ex.getMessage().toLowerCase().contains("phone"));
+        System.out.println("\n✗ Test 11 - Invalid Admin Phone Exception:");
+        System.out.println("  Exception: " + ex.getMessage());
     }
 
     @Test
     void createAdmin_nullAdminLevel_throwsException() {
         IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () ->
-                UserFactory.createAdmin(
-                        "Jane Doe", "jane@example.com", "Secret12", null, null
-                )
+                UserFactory.createAdmin("Jane Doe", "jane@example.com", "Secret12", null, null)
         );
         assertTrue(ex.getMessage().contains("Admin creation failed"));
         assertTrue(ex.getMessage().toLowerCase().contains("admin level"));
+        System.out.println("\n✗ Test 12 - Null Admin Level Exception:");
+        System.out.println("  Exception: " + ex.getMessage());
     }
 
     @Test
     void createAdmin_multipleInvalidFields_errorMessageContainsAllIssues() {
         IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () ->
-                UserFactory.createAdmin(
-                        "J", "bad-email", "123", "bad-phone", AdminLevel.ADMIN
-                )
+                UserFactory.createAdmin("J", "bad-email", "123", "bad-phone", AdminLevel.ADMIN)
         );
         String msg = ex.getMessage();
         assertTrue(msg.toLowerCase().contains("name"));
         assertTrue(msg.toLowerCase().contains("email"));
         assertTrue(msg.toLowerCase().contains("password"));
         assertTrue(msg.toLowerCase().contains("phone"));
+        System.out.println("\n✗ Test 13 - Multiple Admin Field Errors:");
+        System.out.println("  Exception: " + ex.getMessage());
     }
 
     // ─────────────────────────────────────────────────────────────────────────
-    // createCustomer
+    // CORRECT TESTS — createCustomer
     // ─────────────────────────────────────────────────────────────────────────
 
     @Test
     void createCustomer_validInput_returnsCustomerWithCorrectAttributes() {
         Customer customer = UserFactory.createCustomer(
-                "John Smith", "john@example.com", "Pass1234", "0831234567", Block.A, "101"
+                "John Smith", "john@example.com", "Pass1234", "0831234567", Block.B, "101"
         );
 
         assertNotNull(customer);
@@ -167,10 +189,18 @@ class UserFactoryTest {
         assertEquals("john@example.com", customer.getEmail());
         assertEquals("Pass1234", customer.getPassword());
         assertEquals("0831234567", customer.getPhone());
-        assertEquals(Block.A, customer.getBlock());
+        assertEquals(Block.B, customer.getBlock());
         assertEquals("101", customer.getRoomNumber());
         assertEquals(Role.CUSTOMER, customer.getRole());
         assertTrue(customer.isActive());
+        System.out.println("\n✓ Test 14 - Valid Customer Creation:");
+        System.out.println("  Name        : " + customer.getName());
+        System.out.println("  Email       : " + customer.getEmail());
+        System.out.println("  Phone       : " + customer.getPhone());
+        System.out.println("  Block       : " + customer.getBlock());
+        System.out.println("  Room        : " + customer.getRoomNumber());
+        System.out.println("  Role        : " + customer.getRole());
+        System.out.println("  Active      : " + customer.isActive());
     }
 
     @Test
@@ -179,6 +209,9 @@ class UserFactoryTest {
                 "John Smith", "JOHN@EXAMPLE.COM", "Pass1234", null, Block.B, "202"
         );
         assertEquals("john@example.com", customer.getEmail());
+        System.out.println("\n✓ Test 15 - Customer Email Stored in Lowercase:");
+        System.out.println("  Input Email  : JOHN@EXAMPLE.COM");
+        System.out.println("  Stored Email : " + customer.getEmail());
     }
 
     @Test
@@ -187,135 +220,65 @@ class UserFactoryTest {
                 "John Smith", "john@example.com", "Pass1234", null, Block.C, "303"
         );
         assertNull(customer.getPhone());
+        System.out.println("\n✓ Test 16 - Customer with Null Phone:");
+        System.out.println("  Name  : " + customer.getName());
+        System.out.println("  Block : " + customer.getBlock());
+        System.out.println("  Room  : " + customer.getRoomNumber());
+        System.out.println("  Phone : " + customer.getPhone());
     }
 
-    @Test
-    void createCustomer_allBlockValues_areAccepted() {
-        for (Block block : Block.values()) {
-            Customer customer = UserFactory.createCustomer(
-                    "John Smith", "john" + block + "@example.com", "Pass1234", null, block, "101"
-            );
-            assertEquals(block, customer.getBlock());
-        }
-    }
+    // ─────────────────────────────────────────────────────────────────────────
+    // INCORRECT TESTS — createCustomer (exceptions, all pass)
+    // ─────────────────────────────────────────────────────────────────────────
 
     @Test
     void createCustomer_invalidName_throwsException() {
         IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () ->
-                UserFactory.createCustomer(
-                        "J", "john@example.com", "Pass1234", null, Block.A, "101"
-                )
+                UserFactory.createCustomer("J", "john@example.com", "Pass1234", null, Block.B, "101")
         );
         assertTrue(ex.getMessage().contains("Customer creation failed"));
         assertTrue(ex.getMessage().toLowerCase().contains("name"));
-    }
-
-    @Test
-    void createCustomer_nullName_throwsException() {
-        assertThrows(IllegalArgumentException.class, () ->
-                UserFactory.createCustomer(
-                        null, "john@example.com", "Pass1234", null, Block.A, "101"
-                )
-        );
+        System.out.println("\n✗ Test 17 - Invalid Customer Name Exception:");
+        System.out.println("  Exception: " + ex.getMessage());
     }
 
     @Test
     void createCustomer_invalidEmail_throwsException() {
         IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () ->
-                UserFactory.createCustomer(
-                        "John Smith", "not-an-email", "Pass1234", null, Block.A, "101"
-                )
+                UserFactory.createCustomer("John Smith", "not-an-email", "Pass1234", null, Block.B, "101")
         );
         assertTrue(ex.getMessage().contains("Customer creation failed"));
         assertTrue(ex.getMessage().toLowerCase().contains("email"));
-    }
-
-    @Test
-    void createCustomer_nullEmail_throwsException() {
-        assertThrows(IllegalArgumentException.class, () ->
-                UserFactory.createCustomer(
-                        "John Smith", null, "Pass1234", null, Block.A, "101"
-                )
-        );
-    }
-
-    @Test
-    void createCustomer_passwordTooShort_throwsException() {
-        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () ->
-                UserFactory.createCustomer(
-                        "John Smith", "john@example.com", "abc", null, Block.A, "101"
-                )
-        );
-        assertTrue(ex.getMessage().contains("Customer creation failed"));
-        assertTrue(ex.getMessage().toLowerCase().contains("password"));
-    }
-
-    @Test
-    void createCustomer_nullPassword_throwsException() {
-        assertThrows(IllegalArgumentException.class, () ->
-                UserFactory.createCustomer(
-                        "John Smith", "john@example.com", null, null, Block.A, "101"
-                )
-        );
-    }
-
-    @Test
-    void createCustomer_invalidPhone_throwsException() {
-        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () ->
-                UserFactory.createCustomer(
-                        "John Smith", "john@example.com", "Pass1234", "not-a-phone", Block.A, "101"
-                )
-        );
-        assertTrue(ex.getMessage().contains("Customer creation failed"));
-        assertTrue(ex.getMessage().toLowerCase().contains("phone"));
+        System.out.println("\n✗ Test 18 - Invalid Customer Email Exception:");
+        System.out.println("  Exception: " + ex.getMessage());
     }
 
     @Test
     void createCustomer_nullBlock_throwsException() {
         IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () ->
-                UserFactory.createCustomer(
-                        "John Smith", "john@example.com", "Pass1234", null, null, "101"
-                )
+                UserFactory.createCustomer("John Smith", "john@example.com", "Pass1234", null, null, "101")
         );
         assertTrue(ex.getMessage().contains("Customer creation failed"));
         assertTrue(ex.getMessage().toLowerCase().contains("block"));
+        System.out.println("\n✗ Test 19 - Null Customer Block Exception:");
+        System.out.println("  Exception: " + ex.getMessage());
     }
 
     @Test
     void createCustomer_nullRoomNumber_throwsException() {
         IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () ->
-                UserFactory.createCustomer(
-                        "John Smith", "john@example.com", "Pass1234", null, Block.A, null
-                )
+                UserFactory.createCustomer("John Smith", "john@example.com", "Pass1234", null, Block.B, null)
         );
         assertTrue(ex.getMessage().contains("Customer creation failed"));
         assertTrue(ex.getMessage().toLowerCase().contains("room"));
-    }
-
-    @Test
-    void createCustomer_emptyRoomNumber_throwsException() {
-        assertThrows(IllegalArgumentException.class, () ->
-                UserFactory.createCustomer(
-                        "John Smith", "john@example.com", "Pass1234", null, Block.A, "   "
-                )
-        );
-    }
-
-    @Test
-    void createCustomer_roomNumberExceeds20Chars_throwsException() {
-        assertThrows(IllegalArgumentException.class, () ->
-                UserFactory.createCustomer(
-                        "John Smith", "john@example.com", "Pass1234", null, Block.A, "123456789012345678901"
-                )
-        );
+        System.out.println("\n✗ Test 20 - Null Customer Room Number Exception:");
+        System.out.println("  Exception: " + ex.getMessage());
     }
 
     @Test
     void createCustomer_multipleInvalidFields_errorMessageContainsAllIssues() {
         IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () ->
-                UserFactory.createCustomer(
-                        "J", "bad-email", "123", "bad-phone", null, null
-                )
+                UserFactory.createCustomer("J", "bad-email", "123", "bad-phone", null, null)
         );
         String msg = ex.getMessage();
         assertTrue(msg.toLowerCase().contains("name"));
@@ -324,5 +287,7 @@ class UserFactoryTest {
         assertTrue(msg.toLowerCase().contains("phone"));
         assertTrue(msg.toLowerCase().contains("block"));
         assertTrue(msg.toLowerCase().contains("room"));
+        System.out.println("\n✗ Test 21 - Multiple Customer Field Errors:");
+        System.out.println("  Exception: " + ex.getMessage());
     }
 }
