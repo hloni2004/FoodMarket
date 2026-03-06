@@ -1,5 +1,6 @@
 package com.llburgers.domain;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.llburgers.domain.enums.ProductCategory;
 import jakarta.persistence.*;
 import lombok.*;
@@ -45,6 +46,7 @@ public class Product {
     @Builder.Default
     private int stockQuantity = 0;
 
+    @JsonIgnore
     @OneToMany(mappedBy = "product", cascade = CascadeType.ALL, orphanRemoval = true)
     @Builder.Default
     private List<OrderItem> orderItems = new ArrayList<>();

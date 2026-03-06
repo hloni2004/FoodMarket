@@ -1,5 +1,6 @@
 package com.llburgers.domain;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
@@ -46,6 +47,7 @@ public class BusinessStatus {
     /**
      * The admin who last toggled the status.
      */
+    @JsonIgnoreProperties({"password", "hibernateLazyInitializer"})
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "last_changed_by")
     private Admin lastChangedBy;

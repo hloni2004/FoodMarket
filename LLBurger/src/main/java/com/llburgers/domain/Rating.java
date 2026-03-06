@@ -1,5 +1,6 @@
 package com.llburgers.domain;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
@@ -22,6 +23,7 @@ public class Rating {
     private UUID id;
 
     /** One rating per order */
+    @JsonIgnoreProperties({"orderItems", "notifications", "customer", "hibernateLazyInitializer"})
     @OneToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "order_id", nullable = false, unique = true)
     private Order order;

@@ -1,5 +1,6 @@
 package com.llburgers.domain;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -40,6 +41,7 @@ public class Extra {
     @Builder.Default
     private int stockQuantity = 0;
 
+    @JsonIgnore
     @OneToMany(mappedBy = "extra", cascade = CascadeType.ALL, orphanRemoval = true)
     @Builder.Default
     private List<OrderItemExtra> orderItemExtras = new ArrayList<>();

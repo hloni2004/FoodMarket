@@ -2,19 +2,21 @@ package com.llburgers.service.impl;
 
 import com.llburgers.domain.*;
 import com.llburgers.domain.enums.Block;
-import com.llburgers.domain.enums.NotificationStatus;
-import com.llburgers.domain.enums.NotificationType;
 import com.llburgers.domain.enums.OrderStatus;
+import com.llburgers.event.OrderCancelledEvent;
+import com.llburgers.event.OrderPlacedEvent;
+import com.llburgers.event.OrderStatusChangedEvent;
 import com.llburgers.repository.*;
-import com.llburgers.service.IEmailService;
 import com.llburgers.service.IOrderService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
@@ -42,23 +44,20 @@ public class OrderServiceImpl implements IOrderService {
     private final ProductRepository productRepository;
     private final SideRepository sideRepository;
     private final ExtraRepository extraRepository;
-    private final NotificationRepository notificationRepository;
-    private final IEmailService emailService;
+    private final ApplicationEventPublisher eventPublisher;
 
     public OrderServiceImpl(OrderRepository repository,
                             BusinessStatusRepository businessStatusRepository,
                             ProductRepository productRepository,
                             SideRepository sideRepository,
                             ExtraRepository extraRepository,
-                            NotificationRepository notificationRepository,
-                            IEmailService emailService) {
+                            ApplicationEventPublisher eventPublisher) {
         this.repository = repository;
         this.businessStatusRepository = businessStatusRepository;
         this.productRepository = productRepository;
         this.sideRepository = sideRepository;
         this.extraRepository = extraRepository;
-        this.notificationRepository = notificationRepository;
-        this.emailService = emailService;
+        this.eventPublisher = eventPublisher;
     }
 
     // ─── CRUD ─────────────────────────────────────────────────────────────────
@@ -87,6 +86,9 @@ public class OrderServiceImpl implements IOrderService {
 
         // 3. Validate and reduce stock for every order item
         BigDecimal calculatedTotal = BigDecimal.ZERO;
+        List<UUID> affectedProductIds = new ArrayList<>();
+        List<UUID> affectedExtraIds = new ArrayList<>();
+        List<UUID> affectedSideIds = new ArrayList<>();
 
         for (OrderItem item : order.getOrderItems()) {
             Product product = productRepository.findById(item.getProduct().getId())
@@ -106,6 +108,7 @@ public class OrderServiceImpl implements IOrderService {
             // Reduce stock atomically
             product.setStockQuantity(product.getStockQuantity() - item.getQuantity());
             productRepository.save(product);
+            affectedProductIds.add(product.getId());
 
             // Validate extras
             for (OrderItemExtra oie : item.getExtras()) {
@@ -120,6 +123,7 @@ public class OrderServiceImpl implements IOrderService {
                 }
                 extra.setStockQuantity(extra.getStockQuantity() - oie.getQuantity());
                 extraRepository.save(extra);
+                affectedExtraIds.add(extra.getId());
             }
 
             // Validate sides
@@ -135,6 +139,7 @@ public class OrderServiceImpl implements IOrderService {
                 }
                 side.setStockQuantity(side.getStockQuantity() - ois.getQuantity());
                 sideRepository.save(side);
+                affectedSideIds.add(side.getId());
             }
 
             calculatedTotal = calculatedTotal.add(item.getTotalPrice());
@@ -152,25 +157,9 @@ public class OrderServiceImpl implements IOrderService {
         order.setStatus(OrderStatus.PROCESSING);
         Order saved = repository.save(order);
 
-        // 6. Create notification record
-        Notification notification = Notification.builder()
-                .order(saved)
-                .type(NotificationType.ORDER_PLACED)
-                .status(NotificationStatus.PENDING)
-                .build();
-        notificationRepository.save(notification);
-
-        // 7. Send order confirmation email (Mailjet)
-        try {
-            emailService.sendOrderConfirmationEmail(saved);
-            notification.setStatus(NotificationStatus.SENT);
-            notificationRepository.save(notification);
-        } catch (Exception e) {
-            log.error("[ORDER] Failed to send confirmation email for order {}: {}",
-                    saved.getId(), e.getMessage());
-            notification.setStatus(NotificationStatus.FAILED);
-            notificationRepository.save(notification);
-        }
+        // 6. Publish OrderPlacedEvent — listeners handle notifications, emails, and stock events
+        eventPublisher.publishEvent(new OrderPlacedEvent(
+                saved, affectedProductIds, affectedExtraIds, affectedSideIds));
 
         log.info("[ORDER-CREATED] id={}, customer={}, total={}, block={}, room={}",
                 saved.getId(), saved.getCustomer().getId(),
@@ -285,25 +274,8 @@ public class OrderServiceImpl implements IOrderService {
         order.setStatus(newStatus);
         Order saved = repository.save(order);
 
-        // Create notification
-        Notification notification = Notification.builder()
-                .order(saved)
-                .type(NotificationType.ORDER_STATUS_CHANGED)
-                .status(NotificationStatus.PENDING)
-                .build();
-        notificationRepository.save(notification);
-
-        // Send status update email (Mailjet)
-        try {
-            emailService.sendOrderStatusUpdateEmail(saved);
-            notification.setStatus(NotificationStatus.SENT);
-            notificationRepository.save(notification);
-        } catch (Exception e) {
-            log.error("[ORDER] Failed to send status update email for order {}: {}",
-                    saved.getId(), e.getMessage());
-            notification.setStatus(NotificationStatus.FAILED);
-            notificationRepository.save(notification);
-        }
+        // Publish OrderStatusChangedEvent — listeners handle notification + email
+        eventPublisher.publishEvent(new OrderStatusChangedEvent(saved, current, newStatus));
 
         log.info("[ORDER-STATUS] id={}, {} → {}", saved.getId(), current, newStatus);
         return saved;
@@ -339,6 +311,10 @@ public class OrderServiceImpl implements IOrderService {
         }
 
         repository.delete(order);
+
+        // Publish OrderCancelledEvent — listeners fire stock-updated events
+        eventPublisher.publishEvent(new OrderCancelledEvent(order));
+
         log.info("[ORDER-CANCELLED] id={}", id);
         return order;
     }

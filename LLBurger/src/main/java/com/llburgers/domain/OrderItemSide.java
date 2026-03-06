@@ -1,5 +1,7 @@
 package com.llburgers.domain;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -20,10 +22,12 @@ public class OrderItemSide {
     @Column(name = "id", updatable = false, nullable = false)
     private UUID id;
 
+    @JsonIgnore
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "order_item_id", nullable = false)
     private OrderItem orderItem;
 
+    @JsonIgnoreProperties({"orderItemSides", "hibernateLazyInitializer"})
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "side_id", nullable = false)
     private Side side;

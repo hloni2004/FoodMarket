@@ -50,9 +50,11 @@ public class EmailServiceImpl implements IEmailService {
     @Async
     @Override
     public void sendWelcomeEmail(Customer customer) {
+        log.debug("[ASYNC-START] sendWelcomeEmail for {}", customer.getEmail());
         String subject = "Welcome to LL Burgers! 🍔";
         String body = buildWelcomeEmailBody(customer);
         sendWithRetry(brevoSender, brevoFromAddress, customer.getEmail(), subject, body, "WELCOME");
+        log.debug("[ASYNC-END] sendWelcomeEmail for {}", customer.getEmail());
     }
 
     @Async

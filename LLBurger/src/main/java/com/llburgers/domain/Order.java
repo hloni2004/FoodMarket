@@ -1,5 +1,7 @@
 package com.llburgers.domain;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.llburgers.domain.enums.Block;
 import com.llburgers.domain.enums.OrderStatus;
 import jakarta.persistence.*;
@@ -27,6 +29,7 @@ public class Order {
     @Column(name = "id", updatable = false, nullable = false)
     private UUID id;
 
+    @JsonIgnoreProperties({"orders", "password", "hibernateLazyInitializer"})
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "customer_id", nullable = false)
     private Customer customer;
@@ -58,6 +61,7 @@ public class Order {
     @Builder.Default
     private List<OrderItem> orderItems = new ArrayList<>();
 
+    @JsonIgnore
     @OneToMany(mappedBy = "order", cascade = CascadeType.ALL, orphanRemoval = true)
     @Builder.Default
     private List<Notification> notifications = new ArrayList<>();

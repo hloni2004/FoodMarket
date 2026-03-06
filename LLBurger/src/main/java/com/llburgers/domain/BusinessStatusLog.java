@@ -1,5 +1,6 @@
 package com.llburgers.domain;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
@@ -45,6 +46,7 @@ public class BusinessStatusLog {
     /**
      * The admin who performed the toggle.
      */
+    @JsonIgnoreProperties({"password", "hibernateLazyInitializer"})
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "changed_by", nullable = false)
     private Admin changedBy;

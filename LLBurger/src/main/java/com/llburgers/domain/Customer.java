@@ -1,5 +1,6 @@
 package com.llburgers.domain;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.llburgers.domain.enums.Block;
 import com.llburgers.domain.enums.Role;
 import jakarta.persistence.*;
@@ -34,6 +35,7 @@ public class Customer extends User {
     @Column(name = "payment_methods", columnDefinition = "TEXT")
     private String paymentMethods;
 
+    @JsonIgnore
     @OneToMany(mappedBy = "customer", cascade = CascadeType.ALL, orphanRemoval = true)
     @Builder.Default
     private List<Order> orders = new ArrayList<>();

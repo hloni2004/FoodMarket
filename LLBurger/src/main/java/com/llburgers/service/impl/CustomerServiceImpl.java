@@ -31,16 +31,13 @@ public class CustomerServiceImpl implements ICustomerService {
     public Customer create(Customer customer) {
         Customer saved = repository.save(customer);
 
-        // Send welcome email via Brevo (Provider A)
-        try {
-            emailService.sendWelcomeEmail(saved);
-        } catch (Exception e) {
-            log.error("[CUSTOMER] Failed to send welcome email to {}: {}",
-                    saved.getEmail(), e.getMessage());
-        }
-
         log.info("[CUSTOMER-REGISTERED] id={}, email={}, block={}, room={}",
                 saved.getId(), saved.getEmail(), saved.getBlock(), saved.getRoomNumber());
+        
+        // Send welcome email via Brevo (Provider A) - async execution
+        log.debug("[CUSTOMER] Triggering welcome email to {}", saved.getEmail());
+        emailService.sendWelcomeEmail(saved);
+
         return saved;
     }
 

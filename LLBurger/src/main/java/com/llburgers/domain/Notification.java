@@ -1,5 +1,6 @@
 package com.llburgers.domain;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.llburgers.domain.enums.NotificationStatus;
 import com.llburgers.domain.enums.NotificationType;
 import jakarta.persistence.*;
@@ -28,6 +29,7 @@ public class Notification {
      * Nullable — business-level notifications (BUSINESS_OPENED / BUSINESS_CLOSED)
      * are not tied to a specific order.
      */
+    @JsonIgnoreProperties({"orderItems", "notifications", "customer", "hibernateLazyInitializer"})
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "order_id")
     private Order order;
