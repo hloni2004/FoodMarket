@@ -27,3 +27,8 @@ Thumbs.db
 *.log
 logs/
 
+# ─── Secrets (never commit real credentials) ──────────────────────────────────
+.env
+.env.local
+LLBurger/src/main/resources/application-local.properties
+
