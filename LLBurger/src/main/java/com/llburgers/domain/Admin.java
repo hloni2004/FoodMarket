@@ -29,6 +29,8 @@ public class Admin extends User {
     @PrePersist
     @PreUpdate
     private void enforceRole() {
+        // All admins have role = ADMIN in the users table
+        // Super admin distinction is via admin_level field
         setRole(Role.ADMIN);
     }
 }

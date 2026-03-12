@@ -51,7 +51,7 @@ public class ExtraServiceImpl implements IExtraService {
     @Cacheable(value = "extras", key = "'all'")
     @Override
     public List<Extra> getAll() {
-        return repository.findAll();
+        return repository.findByDeletedFalse();
     }
 
     @CacheEvict(value = "extras", allEntries = true)
@@ -77,7 +77,7 @@ public class ExtraServiceImpl implements IExtraService {
 
     @Override
     public List<Extra> findByAvailability(boolean availability) {
-        return repository.findByAvailability(availability);
+        return repository.findByAvailabilityAndDeletedFalse(availability);
     }
 
     @Override
@@ -89,7 +89,7 @@ public class ExtraServiceImpl implements IExtraService {
 
     @Override
     public List<Extra> findInStock() {
-        return repository.findByStockQuantityGreaterThan(0);
+        return repository.findByStockQuantityGreaterThanAndDeletedFalse(0);
     }
 
     @Override
@@ -144,6 +144,16 @@ public class ExtraServiceImpl implements IExtraService {
         Extra extra = repository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Extra not found with id: " + id));
         extra.setAvailability(true);
+        return repository.save(extra);
+    }
+
+    @CacheEvict(value = "extras", allEntries = true)
+    @Override
+    public Extra softDelete(UUID id) {
+        Extra extra = repository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("Extra not found with id: " + id));
+        extra.setDeleted(true);
+        extra.setAvailability(false);
         return repository.save(extra);
     }
 

@@ -29,5 +29,15 @@ public interface ProductRepository extends JpaRepository<Product, UUID> {
     List<Product> findByStockQuantityGreaterThan(int quantity);
 
     List<Product> findByStockQuantityEquals(int quantity);
+
+    // ─── Soft-delete aware ────────────────────────────────────────────────────
+
+    List<Product> findByDeletedFalse();
+
+    List<Product> findByCategoryAndDeletedFalse(ProductCategory category);
+
+    List<Product> findByAvailabilityAndDeletedFalse(boolean availability);
+
+    List<Product> findByStockQuantityGreaterThanAndDeletedFalse(int quantity);
 }
 

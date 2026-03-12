@@ -118,6 +118,11 @@ public class ProductController {
         return ResponseEntity.ok(productService.markAvailable(id));
     }
 
+    @PatchMapping("/{id}/soft-delete")
+    public ResponseEntity<Product> softDelete(@PathVariable UUID id) {
+        return ResponseEntity.ok(productService.softDelete(id));
+    }
+
     // ─── Image Management ─────────────────────────────────────────────────────
 
     @PostMapping(value = "/{id}/image", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)

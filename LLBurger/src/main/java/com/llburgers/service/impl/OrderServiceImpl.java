@@ -41,6 +41,7 @@ public class OrderServiceImpl implements IOrderService {
 
     private final OrderRepository repository;
     private final BusinessStatusRepository businessStatusRepository;
+    private final CustomerRepository customerRepository;
     private final ProductRepository productRepository;
     private final SideRepository sideRepository;
     private final ExtraRepository extraRepository;
@@ -48,12 +49,14 @@ public class OrderServiceImpl implements IOrderService {
 
     public OrderServiceImpl(OrderRepository repository,
                             BusinessStatusRepository businessStatusRepository,
+                            CustomerRepository customerRepository,
                             ProductRepository productRepository,
                             SideRepository sideRepository,
                             ExtraRepository extraRepository,
                             ApplicationEventPublisher eventPublisher) {
         this.repository = repository;
         this.businessStatusRepository = businessStatusRepository;
+        this.customerRepository = customerRepository;
         this.productRepository = productRepository;
         this.sideRepository = sideRepository;
         this.extraRepository = extraRepository;
@@ -76,7 +79,13 @@ public class OrderServiceImpl implements IOrderService {
             throw new IllegalStateException("Cannot place orders — business is currently closed");
         }
 
-        // 2. Delivery info required
+        // 2. Resolve the Customer to a fully-managed entity to avoid detached-object issues
+        Customer customer = customerRepository.findById(order.getCustomer().getId())
+                .orElseThrow(() -> new IllegalArgumentException(
+                        "Customer not found: " + order.getCustomer().getId()));
+        order.setCustomer(customer);
+
+        // 3. Delivery info required
         if (order.getDeliveryBlock() == null) {
             throw new IllegalArgumentException("Delivery block is required");
         }
@@ -84,7 +93,7 @@ public class OrderServiceImpl implements IOrderService {
             throw new IllegalArgumentException("Delivery room number is required");
         }
 
-        // 3. Validate and reduce stock for every order item
+        // 4. Validate and reduce stock for every order item
         BigDecimal calculatedTotal = BigDecimal.ZERO;
         List<UUID> affectedProductIds = new ArrayList<>();
         List<UUID> affectedExtraIds = new ArrayList<>();
@@ -110,6 +119,10 @@ public class OrderServiceImpl implements IOrderService {
             productRepository.save(product);
             affectedProductIds.add(product.getId());
 
+            // Replace the Jackson-deserialized stub with the managed entity and wire back-reference
+            item.setProduct(product);
+            item.setOrder(order);
+
             // Validate extras
             for (OrderItemExtra oie : item.getExtras()) {
                 Extra extra = extraRepository.findById(oie.getExtra().getId())
@@ -124,6 +137,10 @@ public class OrderServiceImpl implements IOrderService {
                 extra.setStockQuantity(extra.getStockQuantity() - oie.getQuantity());
                 extraRepository.save(extra);
                 affectedExtraIds.add(extra.getId());
+
+                // Replace stub with managed entity and wire back-reference
+                oie.setExtra(extra);
+                oie.setOrderItem(item);
             }
 
             // Validate sides
@@ -140,6 +157,10 @@ public class OrderServiceImpl implements IOrderService {
                 side.setStockQuantity(side.getStockQuantity() - ois.getQuantity());
                 sideRepository.save(side);
                 affectedSideIds.add(side.getId());
+
+                // Replace stub with managed entity and wire back-reference
+                ois.setSide(side);
+                ois.setOrderItem(item);
             }
 
             calculatedTotal = calculatedTotal.add(item.getTotalPrice());

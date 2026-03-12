@@ -1,6 +1,7 @@
 package com.llburgers.domain;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.llburgers.domain.enums.AdminLevel;
 import com.llburgers.domain.enums.Role;
 import jakarta.persistence.*;
 import lombok.*;
@@ -50,4 +51,16 @@ public abstract class User {
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
+
+    /**
+     * Get the effective role for authorization.
+     * Super admins have role=ADMIN in DB but admin_level=SUPER_ADMIN,
+     * this method returns SUPER for them to maintain authorization logic.
+     */
+    public Role getEffectiveRole() {
+        if (this instanceof Admin admin && admin.getAdminLevel() == AdminLevel.SUPER_ADMIN) {
+            return Role.SUPER;
+        }
+        return role;
+    }
 }

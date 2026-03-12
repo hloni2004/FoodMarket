@@ -2,6 +2,7 @@ package com.llburgers.controller;
 
 import com.llburgers.domain.Admin;
 import com.llburgers.domain.enums.AdminLevel;
+import com.llburgers.security.RefreshTokenService;
 import com.llburgers.service.IAdminService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -16,9 +17,11 @@ import java.util.UUID;
 public class AdminController {
 
     private final IAdminService adminService;
+    private final RefreshTokenService refreshTokenService;
 
-    public AdminController(IAdminService adminService) {
+    public AdminController(IAdminService adminService, RefreshTokenService refreshTokenService) {
         this.adminService = adminService;
+        this.refreshTokenService = refreshTokenService;
     }
 
     // ─── CRUD ─────────────────────────────────────────────────────────────────
@@ -45,7 +48,8 @@ public class AdminController {
 
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> delete(@PathVariable UUID id) {
-        adminService.delete(id);
+        adminService.deactivate(id);
+        refreshTokenService.revokeAllForUser(id);
         return ResponseEntity.noContent().build();
     }
 

@@ -4,6 +4,8 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.OnDelete;
+import org.hibernate.annotations.OnDeleteAction;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
@@ -45,10 +47,12 @@ public class BusinessStatusLog {
 
     /**
      * The admin who performed the toggle.
+     * Nullable to preserve audit log if admin is deleted.
      */
     @JsonIgnoreProperties({"password", "hibernateLazyInitializer"})
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "changed_by", nullable = false)
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "changed_by")
+    @OnDelete(action = OnDeleteAction.SET_NULL)
     private Admin changedBy;
 
     @CreationTimestamp

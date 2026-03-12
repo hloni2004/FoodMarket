@@ -52,7 +52,7 @@ public class ProductServiceImpl implements IProductService {
     @Cacheable(value = "products", key = "'all'")
     @Override
     public List<Product> getAll() {
-        return repository.findAll();
+        return repository.findByDeletedFalse();
     }
 
     @CacheEvict(value = "products", allEntries = true)
@@ -83,7 +83,7 @@ public class ProductServiceImpl implements IProductService {
 
     @Override
     public List<Product> findByAvailability(boolean availability) {
-        return repository.findByAvailability(availability);
+        return repository.findByAvailabilityAndDeletedFalse(availability);
     }
 
     @Override
@@ -100,7 +100,7 @@ public class ProductServiceImpl implements IProductService {
 
     @Override
     public List<Product> findInStock() {
-        return repository.findByStockQuantityGreaterThan(0);
+        return repository.findByStockQuantityGreaterThanAndDeletedFalse(0);
     }
 
     @Override
@@ -155,6 +155,18 @@ public class ProductServiceImpl implements IProductService {
         Product product = repository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Product not found with id: " + id));
         product.setAvailability(true);
+        return repository.save(product);
+    }
+
+    // ─── Soft Delete ──────────────────────────────────────────────────────────
+
+    @CacheEvict(value = "products", allEntries = true)
+    @Override
+    public Product softDelete(UUID id) {
+        Product product = repository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("Product not found with id: " + id));
+        product.setDeleted(true);
+        product.setAvailability(false);
         return repository.save(product);
     }
 

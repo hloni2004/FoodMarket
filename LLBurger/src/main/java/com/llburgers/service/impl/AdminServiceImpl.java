@@ -4,6 +4,7 @@ import com.llburgers.domain.Admin;
 import com.llburgers.domain.enums.AdminLevel;
 import com.llburgers.repository.AdminRepository;
 import com.llburgers.service.IAdminService;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -13,15 +14,21 @@ import java.util.UUID;
 public class AdminServiceImpl implements IAdminService {
 
     private final AdminRepository repository;
+    private final PasswordEncoder  passwordEncoder;
 
-    public AdminServiceImpl(AdminRepository repository) {
-        this.repository = repository;
+    public AdminServiceImpl(AdminRepository repository, PasswordEncoder passwordEncoder) {
+        this.repository      = repository;
+        this.passwordEncoder = passwordEncoder;
     }
 
     // ─── CRUD (from IService) ─────────────────────────────────────────────────
 
     @Override
     public Admin create(Admin admin) {
+        // Hash plain-text password before persisting.
+        if (admin.getPassword() != null && !admin.getPassword().startsWith("$2a$")) {
+            admin.setPassword(passwordEncoder.encode(admin.getPassword()));
+        }
         return repository.save(admin);
     }
 

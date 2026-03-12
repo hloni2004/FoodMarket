@@ -96,6 +96,18 @@
             <artifactId>spring-boot-starter-data-redis</artifactId>
         </dependency>
 
+        <!-- Caffeine (In-memory cache fallback for rate limiting) -->
+        <dependency>
+            <groupId>com.github.ben-manes.caffeine</groupId>
+            <artifactId>caffeine</artifactId>
+        </dependency>
+
+        <!-- WebSocket (STOMP + SockJS real-time push) -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-websocket</artifactId>
+        </dependency>
+
         <!-- Lombok (Builder, Getters, etc.) -->
         <dependency>
             <groupId>org.projectlombok</groupId>

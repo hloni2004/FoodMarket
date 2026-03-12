@@ -7,6 +7,7 @@ import com.llburgers.service.ICustomerService;
 import com.llburgers.service.IEmailService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -18,17 +19,26 @@ public class CustomerServiceImpl implements ICustomerService {
     private static final Logger log = LoggerFactory.getLogger(CustomerServiceImpl.class);
 
     private final CustomerRepository repository;
-    private final IEmailService emailService;
+    private final IEmailService        emailService;
+    private final PasswordEncoder      passwordEncoder;
 
-    public CustomerServiceImpl(CustomerRepository repository, IEmailService emailService) {
-        this.repository = repository;
-        this.emailService = emailService;
+    public CustomerServiceImpl(CustomerRepository repository,
+                               IEmailService emailService,
+                               PasswordEncoder passwordEncoder) {
+        this.repository      = repository;
+        this.emailService    = emailService;
+        this.passwordEncoder = passwordEncoder;
     }
 
     // ─── CRUD (from IService) ─────────────────────────────────────────────────
 
     @Override
     public Customer create(Customer customer) {
+        // Hash the plain-text password before persisting — never store raw passwords.
+        if (customer.getPassword() != null && !customer.getPassword().startsWith("$2a$")) {
+            customer.setPassword(passwordEncoder.encode(customer.getPassword()));
+        }
+
         Customer saved = repository.save(customer);
 
         log.info("[CUSTOMER-REGISTERED] id={}, email={}, block={}, room={}",

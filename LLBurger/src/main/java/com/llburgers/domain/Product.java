@@ -46,6 +46,22 @@ public class Product {
     @Builder.Default
     private int stockQuantity = 0;
 
+    @Column(columnDefinition = "TEXT")
+    private String description;
+
+    @Column(columnDefinition = "TEXT")
+    private String details;
+
+    @Column(nullable = false)
+    @Builder.Default
+    private boolean deleted = false;
+
+    @Column(nullable = false)
+    @Builder.Default
+    private boolean featured = false;
+
+    private String tag;
+
     @JsonIgnore
     @OneToMany(mappedBy = "product", cascade = CascadeType.ALL, orphanRemoval = true)
     @Builder.Default

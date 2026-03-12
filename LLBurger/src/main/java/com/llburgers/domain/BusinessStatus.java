@@ -4,6 +4,8 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.OnDelete;
+import org.hibernate.annotations.OnDeleteAction;
 import org.hibernate.annotations.UpdateTimestamp;
 
 import java.time.LocalDateTime;
@@ -50,6 +52,7 @@ public class BusinessStatus {
     @JsonIgnoreProperties({"password", "hibernateLazyInitializer"})
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "last_changed_by")
+    @OnDelete(action = OnDeleteAction.SET_NULL)
     private Admin lastChangedBy;
 
     @CreationTimestamp

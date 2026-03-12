@@ -105,6 +105,11 @@ public class ExtraController {
         return ResponseEntity.ok(extraService.markAvailable(id));
     }
 
+    @PatchMapping("/{id}/soft-delete")
+    public ResponseEntity<Extra> softDelete(@PathVariable UUID id) {
+        return ResponseEntity.ok(extraService.softDelete(id));
+    }
+
     // ─── Image Management ─────────────────────────────────────────────────────
 
     @PostMapping(value = "/{id}/image", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)

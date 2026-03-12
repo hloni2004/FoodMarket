@@ -2,6 +2,7 @@ package com.llburgers.controller;
 
 import com.llburgers.domain.User;
 import com.llburgers.domain.enums.Role;
+import com.llburgers.security.RefreshTokenService;
 import com.llburgers.service.IUserService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -15,9 +16,11 @@ import java.util.UUID;
 public class UserController {
 
     private final IUserService userService;
+    private final RefreshTokenService refreshTokenService;
 
-    public UserController(IUserService userService) {
+    public UserController(IUserService userService, RefreshTokenService refreshTokenService) {
         this.userService = userService;
+        this.refreshTokenService = refreshTokenService;
     }
 
     // ─── Read ─────────────────────────────────────────────────────────────────
@@ -34,7 +37,8 @@ public class UserController {
 
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> delete(@PathVariable UUID id) {
-        userService.delete(id);
+        userService.deactivate(id);
+        refreshTokenService.revokeAllForUser(id);
         return ResponseEntity.noContent().build();
     }
 
@@ -82,7 +86,10 @@ public class UserController {
 
     @PatchMapping("/{id}/deactivate")
     public ResponseEntity<User> deactivate(@PathVariable UUID id) {
-        return ResponseEntity.ok(userService.deactivate(id));
+        User user = userService.deactivate(id);
+        // SECURITY: Revoke all refresh tokens when account is deactivated
+        refreshTokenService.revokeAllForUser(id);
+        return ResponseEntity.ok(user);
     }
 
     @PatchMapping("/{id}/activate")
@@ -93,6 +100,20 @@ public class UserController {
     @PatchMapping("/{id}/password")
     public ResponseEntity<User> changePassword(
             @PathVariable UUID id, @RequestParam String newPassword) {
-        return ResponseEntity.ok(userService.changePassword(id, newPassword));
+        User user = userService.changePassword(id, newPassword);
+        // SECURITY: Revoke all refresh tokens when password is changed
+        refreshTokenService.revokeAllForUser(id);
+        return ResponseEntity.ok(user);
+    }
+
+    @PatchMapping("/{id}/role")
+    public ResponseEntity<User> changeRole(
+            @PathVariable UUID id, @RequestParam Role role) {
+        User user = userService.read(id);
+        user.setRole(role);
+        User updated = userService.update(user);
+        // SECURITY: Revoke all refresh tokens when role is changed
+        refreshTokenService.revokeAllForUser(id);
+        return ResponseEntity.ok(updated);
     }
 }

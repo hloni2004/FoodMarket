@@ -4,6 +4,7 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.llburgers.domain.enums.Block;
 import com.llburgers.domain.enums.OrderStatus;
+import com.llburgers.domain.enums.PaymentStatus;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
@@ -41,6 +42,11 @@ public class Order {
     @Column(nullable = false)
     @Builder.Default
     private OrderStatus status = OrderStatus.PROCESSING;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "payment_status", nullable = false, columnDefinition = "varchar(255) not null default 'PENDING'")
+    @Builder.Default
+    private PaymentStatus paymentStatus = PaymentStatus.PENDING;
 
     @Column(name = "special_instructions", columnDefinition = "TEXT")
     private String specialInstructions;

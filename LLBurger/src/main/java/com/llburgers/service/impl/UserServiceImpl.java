@@ -6,6 +6,7 @@ import com.llburgers.repository.UserRepository;
 import com.llburgers.service.IUserService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -22,10 +23,12 @@ public class UserServiceImpl implements IUserService {
 
     private static final Logger log = LoggerFactory.getLogger(UserServiceImpl.class);
 
-    private final UserRepository repository;
+    private final UserRepository  repository;
+    private final PasswordEncoder  passwordEncoder;
 
-    public UserServiceImpl(UserRepository repository) {
-        this.repository = repository;
+    public UserServiceImpl(UserRepository repository, PasswordEncoder passwordEncoder) {
+        this.repository      = repository;
+        this.passwordEncoder = passwordEncoder;
     }
 
     // ─── CRUD ─────────────────────────────────────────────────────────────────
@@ -128,12 +131,12 @@ public class UserServiceImpl implements IUserService {
 
     @Override
     public User changePassword(UUID id, String newPassword) {
-        if (newPassword == null || newPassword.length() < 8) {
-            throw new IllegalArgumentException("Password must be at least 8 characters");
+        if (newPassword == null || newPassword.length() < 12) {
+            throw new IllegalArgumentException("Password must be at least 12 characters");
         }
         User user = repository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("User not found with id: " + id));
-        user.setPassword(newPassword);
+        user.setPassword(passwordEncoder.encode(newPassword));
         User saved = repository.save(user);
         log.info("[USER-PASSWORD-CHANGED] id={}", saved.getId());
         return saved;

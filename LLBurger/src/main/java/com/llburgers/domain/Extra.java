@@ -41,6 +41,10 @@ public class Extra {
     @Builder.Default
     private int stockQuantity = 0;
 
+    @Column(nullable = false)
+    @Builder.Default
+    private boolean deleted = false;
+
     @JsonIgnore
     @OneToMany(mappedBy = "extra", cascade = CascadeType.ALL, orphanRemoval = true)
     @Builder.Default

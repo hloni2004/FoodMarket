@@ -35,6 +35,8 @@ public interface IExtraService extends IService<Extra, UUID> {
 
     Extra markAvailable(UUID id);
 
+    Extra softDelete(UUID id);
+
     // ─── Image Management (Supabase Storage) ──────────────────────────────────
 
     Extra uploadImage(UUID id, MultipartFile file);

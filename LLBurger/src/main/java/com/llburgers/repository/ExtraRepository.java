@@ -15,6 +15,14 @@ public interface ExtraRepository extends JpaRepository<Extra, UUID> {
 
     boolean existsByName(String name);
 
+    // ─── Soft-delete aware ────────────────────────────────────────────────────
+
+    List<Extra> findByDeletedFalse();
+
+    List<Extra> findByAvailabilityAndDeletedFalse(boolean availability);
+
+    List<Extra> findByStockQuantityGreaterThanAndDeletedFalse(int quantity);
+
     // ─── Filtering ────────────────────────────────────────────────────────────
 
     List<Extra> findByAvailability(boolean availability);

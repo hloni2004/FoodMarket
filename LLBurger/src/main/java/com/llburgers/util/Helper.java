@@ -45,11 +45,25 @@ public class Helper {
         return USERNAME_PATTERN.matcher(username.trim()).matches();
     }
 
+    /**
+     * Enforces strong-password rules:
+     * <ul>
+     *   <li>Minimum 12 characters</li>
+     *   <li>At least one uppercase letter</li>
+     *   <li>At least one lowercase letter</li>
+     *   <li>At least one digit</li>
+     *   <li>At least one special character (!@#$%^&amp;* etc.)</li>
+     * </ul>
+     */
+    private static final Pattern STRONG_PASSWORD_PATTERN = Pattern.compile(
+        "^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)(?=.*[!@#$%^&*()_+\\-=\\[\\]{};':\"\\\\|,.<>/?]).{12,}$"
+    );
+
     public static boolean isValidPassword(String password) {
         if (password == null || password.isEmpty()) {
             return false;
         }
-        return password.length() >= 8;
+        return STRONG_PASSWORD_PATTERN.matcher(password).matches();
     }
 
     public static boolean isValidPhone(String phone) {

@@ -3,6 +3,7 @@ package com.llburgers.controller;
 import com.llburgers.domain.Order;
 import com.llburgers.domain.enums.Block;
 import com.llburgers.domain.enums.OrderStatus;
+import com.llburgers.domain.enums.PaymentStatus;
 import com.llburgers.service.IOrderService;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
@@ -118,6 +119,14 @@ public class OrderController {
     public ResponseEntity<Order> updateStatus(
             @PathVariable UUID id, @RequestParam OrderStatus status) {
         return ResponseEntity.ok(orderService.updateStatus(id, status));
+    }
+
+    @PatchMapping("/{id}/payment")
+    public ResponseEntity<Order> updatePaymentStatus(
+            @PathVariable UUID id, @RequestParam PaymentStatus status) {
+        Order order = orderService.read(id);
+        order.setPaymentStatus(status);
+        return ResponseEntity.ok(orderService.update(order));
     }
 
     @PatchMapping("/{id}/cancel")

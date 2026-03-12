@@ -40,6 +40,10 @@ public interface IProductService extends IService<Product, UUID> {
 
     Product markAvailable(UUID id);
 
+    // ─── Soft Delete ──────────────────────────────────────────────────────────
+
+    Product softDelete(UUID id);
+
     // ─── Image Management (Supabase Storage) ──────────────────────────────────
 
     Product uploadImage(UUID id, MultipartFile file);
