@@ -30,5 +30,6 @@ logs/
 # ─── Secrets (never commit real credentials) ──────────────────────────────────
 .env
 .env.local
+render.env
 LLBurger/src/main/resources/application-local.properties
 
