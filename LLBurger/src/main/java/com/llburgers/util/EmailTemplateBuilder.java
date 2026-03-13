@@ -113,6 +113,7 @@ public final class EmailTemplateBuilder {
                 %s
                 %s
                 <p style="margin:16px 0 0;font-size:20px;line-height:1.3;color:%s;font-weight:800;">Total: %s</p>
+                <p style="margin:8px 0 0;font-size:13px;line-height:1.6;color:%s;">Delivery is free and there are no extra charges.</p>
                 """.formatted(
                 infoBadge("Order Placed", "Reference: #" + e(orderRef)),
                 COLOR_PRIMARY,
@@ -123,7 +124,8 @@ public final class EmailTemplateBuilder {
                 itemsHtml,
                 note,
                 COLOR_PRIMARY,
-                e(total)
+                e(total),
+                COLOR_MUTED
         );
 
         return wrap("Order Confirmation", content, "Track Orders", "https://llburgers-prompt-art.vercel.app/orders");

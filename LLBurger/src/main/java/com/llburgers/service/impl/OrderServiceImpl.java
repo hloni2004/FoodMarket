@@ -93,7 +93,7 @@ public class OrderServiceImpl implements IOrderService {
             throw new IllegalArgumentException("Delivery room number is required");
         }
 
-        // 4. Validate and reduce stock for every order item
+        // 4. Validate order items and compute totals (no stock mutation yet)
         BigDecimal calculatedTotal = BigDecimal.ZERO;
         List<UUID> affectedProductIds = new ArrayList<>();
         List<UUID> affectedExtraIds = new ArrayList<>();
@@ -114,11 +114,6 @@ public class OrderServiceImpl implements IOrderService {
                         + ", available: " + product.getStockQuantity() + ")");
             }
 
-            // Reduce stock atomically
-            product.setStockQuantity(product.getStockQuantity() - item.getQuantity());
-            productRepository.save(product);
-            affectedProductIds.add(product.getId());
-
             // Replace the Jackson-deserialized stub with the managed entity and wire back-reference
             item.setProduct(product);
             item.setOrder(order);
@@ -134,9 +129,6 @@ public class OrderServiceImpl implements IOrderService {
                 if (extra.getStockQuantity() < oie.getQuantity()) {
                     throw new IllegalStateException("Insufficient stock for extra: " + extra.getName());
                 }
-                extra.setStockQuantity(extra.getStockQuantity() - oie.getQuantity());
-                extraRepository.save(extra);
-                affectedExtraIds.add(extra.getId());
 
                 // Replace stub with managed entity and wire back-reference
                 oie.setExtra(extra);
@@ -154,9 +146,6 @@ public class OrderServiceImpl implements IOrderService {
                 if (side.getStockQuantity() < ois.getQuantity()) {
                     throw new IllegalStateException("Insufficient stock for side: " + side.getName());
                 }
-                side.setStockQuantity(side.getStockQuantity() - ois.getQuantity());
-                sideRepository.save(side);
-                affectedSideIds.add(side.getId());
 
                 // Replace stub with managed entity and wire back-reference
                 ois.setSide(side);
@@ -178,7 +167,29 @@ public class OrderServiceImpl implements IOrderService {
         order.setStatus(OrderStatus.PROCESSING);
         Order saved = repository.save(order);
 
-        // 6. Publish OrderPlacedEvent — listeners handle notifications, emails, and stock events
+        // 6. Reduce stock only after all validations and successful order persistence intent
+        for (OrderItem item : saved.getOrderItems()) {
+            Product product = item.getProduct();
+            product.setStockQuantity(product.getStockQuantity() - item.getQuantity());
+            productRepository.save(product);
+            affectedProductIds.add(product.getId());
+
+            for (OrderItemExtra oie : item.getExtras()) {
+                Extra extra = oie.getExtra();
+                extra.setStockQuantity(extra.getStockQuantity() - oie.getQuantity());
+                extraRepository.save(extra);
+                affectedExtraIds.add(extra.getId());
+            }
+
+            for (OrderItemSide ois : item.getSides()) {
+                Side side = ois.getSide();
+                side.setStockQuantity(side.getStockQuantity() - ois.getQuantity());
+                sideRepository.save(side);
+                affectedSideIds.add(side.getId());
+            }
+        }
+
+        // 7. Publish OrderPlacedEvent — listeners handle notifications, emails, and stock events
         eventPublisher.publishEvent(new OrderPlacedEvent(
                 saved, affectedProductIds, affectedExtraIds, affectedSideIds));
 
