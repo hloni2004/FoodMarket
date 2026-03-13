@@ -83,7 +83,7 @@ public class EmailServiceImpl implements IEmailService {
         String to = order.getCustomer().getEmail();
         String subject = "Order Confirmed — #" + order.getId().toString().substring(0, 8);
         String body = buildOrderConfirmationBody(order);
-        sendWithRetry(mailjetSender, mailjetFromAddress, to, subject, body, "ORDER_CONFIRMATION");
+        sendOrderEmailWithFallback(to, subject, body, "ORDER_CONFIRMATION");
     }
 
     @Async
@@ -92,15 +92,40 @@ public class EmailServiceImpl implements IEmailService {
         String to = order.getCustomer().getEmail();
         String subject = "Order Update — " + order.getStatus().name();
         String body = buildOrderStatusUpdateBody(order);
-        sendWithRetry(mailjetSender, mailjetFromAddress, to, subject, body, "ORDER_STATUS_UPDATE");
+        sendOrderEmailWithFallback(to, subject, body, "ORDER_STATUS_UPDATE");
+    }
+
+    private void sendOrderEmailWithFallback(String to, String subject, String body, String emailType) {
+        boolean sentViaMailjet = sendWithRetry(
+                mailjetSender,
+                mailjetFromAddress,
+                to,
+                subject,
+                body,
+                emailType + "_MAILJET"
+        );
+
+        if (sentViaMailjet) {
+            return;
+        }
+
+        log.warn("[EMAIL-FALLBACK] type={}, to={}, provider=BREVO", emailType, to);
+        sendWithRetry(
+                brevoSender,
+                brevoFromAddress,
+                to,
+                subject,
+                body,
+                emailType + "_BREVO_FALLBACK"
+        );
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
     // RETRY MECHANISM
     // ═══════════════════════════════════════════════════════════════════════════
 
-    private void sendWithRetry(JavaMailSender sender, String from, String to,
-                               String subject, String body, String emailType) {
+    private boolean sendWithRetry(JavaMailSender sender, String from, String to,
+                                  String subject, String body, String emailType) {
         for (int attempt = 1; attempt <= MAX_RETRIES; attempt++) {
             try {
                 SimpleMailMessage message = new SimpleMailMessage();
@@ -111,7 +136,7 @@ public class EmailServiceImpl implements IEmailService {
                 sender.send(message);
 
                 log.info("[EMAIL-SENT] type={}, to={}, attempt={}", emailType, to, attempt);
-                return;
+                return true;
             } catch (MailException e) {
                 log.warn("[EMAIL-RETRY] type={}, to={}, attempt={}/{}, error={}",
                         emailType, to, attempt, MAX_RETRIES, e.getMessage());
@@ -121,6 +146,8 @@ public class EmailServiceImpl implements IEmailService {
                 }
             }
         }
+
+        return false;
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
