@@ -39,6 +39,15 @@ public class MailConfig {
     @Value("${mail.sender1.properties.mail.smtp.starttls.enable}")
     private boolean sender1Starttls;
 
+    @Value("${mail.sender1.properties.mail.smtp.connectiontimeout:20000}")
+    private String sender1ConnectionTimeout;
+
+    @Value("${mail.sender1.properties.mail.smtp.timeout:20000}")
+    private String sender1Timeout;
+
+    @Value("${mail.sender1.properties.mail.smtp.writetimeout:20000}")
+    private String sender1WriteTimeout;
+
     // ─── Sender 2: Mailjet (order emails) ─────────────────────────────────────
 
     @Value("${spring.mail.host}")
@@ -59,6 +68,15 @@ public class MailConfig {
     @Value("${spring.mail.properties.mail.smtp.starttls.enable}")
     private boolean sender2Starttls;
 
+    @Value("${spring.mail.properties.mail.smtp.connectiontimeout:20000}")
+    private String sender2ConnectionTimeout;
+
+    @Value("${spring.mail.properties.mail.smtp.timeout:20000}")
+    private String sender2Timeout;
+
+    @Value("${spring.mail.properties.mail.smtp.writetimeout:20000}")
+    private String sender2WriteTimeout;
+
     // ─── Bean Definitions ─────────────────────────────────────────────────────
 
     /**
@@ -76,9 +94,9 @@ public class MailConfig {
         props.put("mail.transport.protocol", "smtp");
         props.put("mail.smtp.auth", String.valueOf(sender1Auth));
         props.put("mail.smtp.starttls.enable", String.valueOf(sender1Starttls));
-        props.put("mail.smtp.connectiontimeout", "5000");
-        props.put("mail.smtp.timeout", "5000");
-        props.put("mail.smtp.writetimeout", "5000");
+        props.put("mail.smtp.connectiontimeout", sender1ConnectionTimeout);
+        props.put("mail.smtp.timeout", sender1Timeout);
+        props.put("mail.smtp.writetimeout", sender1WriteTimeout);
 
         return mailSender;
     }
@@ -99,9 +117,9 @@ public class MailConfig {
         props.put("mail.transport.protocol", "smtp");
         props.put("mail.smtp.auth", String.valueOf(sender2Auth));
         props.put("mail.smtp.starttls.enable", String.valueOf(sender2Starttls));
-        props.put("mail.smtp.connectiontimeout", "5000");
-        props.put("mail.smtp.timeout", "5000");
-        props.put("mail.smtp.writetimeout", "5000");
+        props.put("mail.smtp.connectiontimeout", sender2ConnectionTimeout);
+        props.put("mail.smtp.timeout", sender2Timeout);
+        props.put("mail.smtp.writetimeout", sender2WriteTimeout);
 
         return mailSender;
     }

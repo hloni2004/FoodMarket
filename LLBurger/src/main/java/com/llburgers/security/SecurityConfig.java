@@ -86,6 +86,9 @@ public class SecurityConfig {
                 // ── Public: auth ────────────────────────────────────────────
                 .requestMatchers("/api/auth/**").permitAll()
 
+                // ── Public: email smoke-test endpoint ───────────────────────
+                .requestMatchers(HttpMethod.GET, "/api/test/email").permitAll()
+
                 // ── Public: product browsing ────────────────────────────────
                 .requestMatchers(HttpMethod.GET, "/api/products/**").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/sides/**").permitAll()
