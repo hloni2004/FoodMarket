@@ -4,13 +4,15 @@ import com.llburgers.domain.Customer;
 import com.llburgers.domain.Order;
 import com.llburgers.domain.OrderItem;
 import com.llburgers.service.IEmailService;
+import com.llburgers.util.EmailTemplateBuilder;
+import jakarta.mail.MessagingException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.mail.MailException;
-import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
+import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
@@ -51,26 +53,30 @@ public class EmailServiceImpl implements IEmailService {
     @Override
     public void sendWelcomeEmail(Customer customer) {
         log.debug("[ASYNC-START] sendWelcomeEmail for {}", customer.getEmail());
-        String subject = "Welcome to LL Burgers! 🍔";
-        String body = buildWelcomeEmailBody(customer);
-        sendWithRetry(brevoSender, brevoFromAddress, customer.getEmail(), subject, body, "WELCOME");
+        String subject = "Welcome to LL Burgers";
+        String htmlBody = EmailTemplateBuilder.welcome(
+                customer.getName(),
+                String.valueOf(customer.getBlock()),
+                customer.getRoomNumber()
+        );
+        sendWithRetry(brevoSender, brevoFromAddress, customer.getEmail(), subject, htmlBody, "WELCOME");
         log.debug("[ASYNC-END] sendWelcomeEmail for {}", customer.getEmail());
     }
 
     @Async
     @Override
     public void sendBusinessOpenedEmail(Customer customer) {
-        String subject = "LL Burgers is Now Open! 🟢";
-        String body = buildBusinessOpenedBody(customer);
-        sendWithRetry(brevoSender, brevoFromAddress, customer.getEmail(), subject, body, "BUSINESS_OPENED");
+        String subject = "LL Burgers is now open";
+        String htmlBody = EmailTemplateBuilder.businessOpened(customer.getName());
+        sendWithRetry(brevoSender, brevoFromAddress, customer.getEmail(), subject, htmlBody, "BUSINESS_OPENED");
     }
 
     @Async
     @Override
     public void sendBusinessClosedEmail(Customer customer, String closedMessage) {
-        String subject = "LL Burgers is Now Closed 🔴";
-        String body = buildBusinessClosedBody(customer, closedMessage);
-        sendWithRetry(brevoSender, brevoFromAddress, customer.getEmail(), subject, body, "BUSINESS_CLOSED");
+        String subject = "LL Burgers is now closed";
+        String htmlBody = EmailTemplateBuilder.businessClosed(customer.getName(), closedMessage);
+        sendWithRetry(brevoSender, brevoFromAddress, customer.getEmail(), subject, htmlBody, "BUSINESS_CLOSED");
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
@@ -82,8 +88,8 @@ public class EmailServiceImpl implements IEmailService {
     public void sendOrderConfirmationEmail(Order order) {
         String to = order.getCustomer().getEmail();
         String subject = "Order Confirmed — #" + order.getId().toString().substring(0, 8);
-        String body = buildOrderConfirmationBody(order);
-        sendOrderEmailWithFallback(to, subject, body, "ORDER_CONFIRMATION");
+        String htmlBody = buildOrderConfirmationBody(order);
+        sendOrderEmailWithFallback(to, subject, htmlBody, "ORDER_CONFIRMATION");
     }
 
     @Async
@@ -91,17 +97,17 @@ public class EmailServiceImpl implements IEmailService {
     public void sendOrderStatusUpdateEmail(Order order) {
         String to = order.getCustomer().getEmail();
         String subject = "Order Update — " + order.getStatus().name();
-        String body = buildOrderStatusUpdateBody(order);
-        sendOrderEmailWithFallback(to, subject, body, "ORDER_STATUS_UPDATE");
+        String htmlBody = buildOrderStatusUpdateBody(order);
+        sendOrderEmailWithFallback(to, subject, htmlBody, "ORDER_STATUS_UPDATE");
     }
 
-    private void sendOrderEmailWithFallback(String to, String subject, String body, String emailType) {
+    private void sendOrderEmailWithFallback(String to, String subject, String htmlBody, String emailType) {
         boolean sentViaMailjet = sendWithRetry(
                 mailjetSender,
                 mailjetFromAddress,
                 to,
                 subject,
-                body,
+                htmlBody,
                 emailType + "_MAILJET"
         );
 
@@ -115,7 +121,7 @@ public class EmailServiceImpl implements IEmailService {
                 brevoFromAddress,
                 to,
                 subject,
-                body,
+            htmlBody,
                 emailType + "_BREVO_FALLBACK"
         );
     }
@@ -125,19 +131,20 @@ public class EmailServiceImpl implements IEmailService {
     // ═══════════════════════════════════════════════════════════════════════════
 
     private boolean sendWithRetry(JavaMailSender sender, String from, String to,
-                                  String subject, String body, String emailType) {
+                                  String subject, String htmlBody, String emailType) {
         for (int attempt = 1; attempt <= MAX_RETRIES; attempt++) {
             try {
-                SimpleMailMessage message = new SimpleMailMessage();
-                message.setFrom(from);
-                message.setTo(to);
-                message.setSubject(subject);
-                message.setText(body);
+                var message = sender.createMimeMessage();
+                MimeMessageHelper helper = new MimeMessageHelper(message, "UTF-8");
+                helper.setFrom(from);
+                helper.setTo(to);
+                helper.setSubject(subject);
+                helper.setText(htmlBody, true);
                 sender.send(message);
 
                 log.info("[EMAIL-SENT] type={}, to={}, attempt={}", emailType, to, attempt);
                 return true;
-            } catch (MailException e) {
+            } catch (MailException | MessagingException e) {
                 log.warn("[EMAIL-RETRY] type={}, to={}, attempt={}/{}, error={}",
                         emailType, to, attempt, MAX_RETRIES, e.getMessage());
                 if (attempt == MAX_RETRIES) {
@@ -155,82 +162,39 @@ public class EmailServiceImpl implements IEmailService {
     // ═══════════════════════════════════════════════════════════════════════════
 
     private String buildWelcomeEmailBody(Customer customer) {
-        return """
-                Welcome to LL Burgers, %s! 🍔
-                
-                Thank you for joining us. Your account has been created successfully.
-                
-                Delivery Details:
-                  - Block: %s
-                  - Room: %s
-                
-                Browse our menu and place your first order today!
-                
-                LL Burgers — Delivered to your door.
-                """.formatted(customer.getName(), customer.getBlock(), customer.getRoomNumber());
+        return EmailTemplateBuilder.welcome(
+            customer.getName(),
+            String.valueOf(customer.getBlock()),
+            customer.getRoomNumber()
+        );
     }
 
     private String buildBusinessOpenedBody(Customer customer) {
-        return """
-                LL Burgers is Now Open! 🟢
-                
-                Hey %s, we're open for orders!
-                Head over and grab your favourite burger now.
-                
-                LL Burgers — Delivered to your door.
-                """.formatted(customer.getName());
+        return EmailTemplateBuilder.businessOpened(customer.getName());
     }
 
     private String buildBusinessClosedBody(Customer customer, String closedMessage) {
-        String note = (closedMessage != null && !closedMessage.isBlank())
-                ? "\nNote: " + closedMessage + "\n"
-                : "";
-        return """
-                LL Burgers is Now Closed 🔴
-                
-                Hey %s, we've closed for now.
-                %s
-                We'll notify you as soon as we reopen!
-                
-                LL Burgers — Delivered to your door.
-                """.formatted(customer.getName(), note);
+        return EmailTemplateBuilder.businessClosed(customer.getName(), closedMessage);
     }
 
     private String buildOrderConfirmationBody(Order order) {
-        StringBuilder items = new StringBuilder();
+        StringBuilder itemRows = new StringBuilder();
         for (OrderItem item : order.getOrderItems()) {
-            items.append("  - ")
-                    .append(item.getProduct().getName())
-                    .append(" x").append(item.getQuantity())
-                    .append(" — R").append(item.getTotalPrice())
-                    .append("\n");
+            itemRows.append(EmailTemplateBuilder.orderItemRow(
+                item.getProduct().getName(),
+                item.getQuantity(),
+                "R" + item.getTotalPrice()
+            ));
         }
 
-        String specialNote = (order.getSpecialInstructions() != null && !order.getSpecialInstructions().isBlank())
-                ? "\nSpecial Instructions / Allergies: " + order.getSpecialInstructions() + "\n"
-                : "";
-
-        return """
-                Order Confirmed ✅
-                
-                Hi %s, your order has been placed successfully!
-                
-                Order ID: %s
-                Delivery: Block %s, Room %s
-                %s
-                Items:
-                %s
-                Total: R%s
-                
-                LL Burgers — Delivered to your door.
-                """.formatted(
-                order.getCustomer().getName(),
-                order.getId().toString().substring(0, 8),
-                order.getDeliveryBlock(),
-                order.getDeliveryRoomNumber(),
-                specialNote,
-                items.toString(),
-                order.getTotalPrice()
+        return EmailTemplateBuilder.orderConfirmation(
+            order.getCustomer().getName(),
+            order.getId().toString().substring(0, 8),
+            String.valueOf(order.getDeliveryBlock()),
+            order.getDeliveryRoomNumber(),
+            EmailTemplateBuilder.orderItemsTable(itemRows.toString()),
+            "R" + order.getTotalPrice(),
+            order.getSpecialInstructions()
         );
     }
 
@@ -241,22 +205,11 @@ public class EmailServiceImpl implements IEmailService {
             case DELIVERED -> "✅";
         };
 
-        return """
-                Order Update %s
-                
-                Hi %s, your order #%s status has changed:
-                
-                Status: %s
-                
-                Delivery: Block %s, Room %s
-                
-                LL Burgers — Delivered to your door.
-                """.formatted(
-                statusEmoji,
+        return EmailTemplateBuilder.orderStatusUpdate(
                 order.getCustomer().getName(),
                 order.getId().toString().substring(0, 8),
-                order.getStatus().name().replace("_", " "),
-                order.getDeliveryBlock(),
+            statusEmoji + " " + order.getStatus().name().replace("_", " "),
+            String.valueOf(order.getDeliveryBlock()),
                 order.getDeliveryRoomNumber()
         );
     }

@@ -18,6 +18,7 @@ import com.llburgers.security.LoginAttemptService;
 import com.llburgers.security.PasswordResetRateLimiter;
 import com.llburgers.security.RefreshTokenService;
 import com.llburgers.service.ICustomerService;
+import com.llburgers.util.EmailTemplateBuilder;
 import com.llburgers.util.Helper;
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
@@ -28,9 +29,8 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
-import org.springframework.mail.MailException;
-import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
+import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -299,27 +299,16 @@ public class AuthController {
             otpRepository.save(otp);
 
             try {
-                SimpleMailMessage msg = new SimpleMailMessage();
-                msg.setFrom(fromEmail);
-                msg.setTo(user.getEmail());
-                msg.setSubject("LL Burgers – Your Password Reset Code");
-                msg.setText("""
-                    Hi %s,
-
-                    Your one-time password reset code is:
-
-                        %s
-
-                    This code expires in 10 minutes. Do not share it with anyone.
-
-                    If you did not request a password reset, you can safely ignore this email.
-
-                    — The LL Burgers Team
-                    """.formatted(user.getName(), rawOtp));
+                var msg = brevoMailSender.createMimeMessage();
+                MimeMessageHelper helper = new MimeMessageHelper(msg, "UTF-8");
+                helper.setFrom(fromEmail);
+                helper.setTo(user.getEmail());
+                helper.setSubject("LL Burgers - Your Password Reset Code");
+                helper.setText(EmailTemplateBuilder.otpCode(user.getName(), rawOtp), true);
 
                 brevoMailSender.send(msg);
                 log.info("[AUTH-OTP] OTP email sent to {}", email);
-            } catch (MailException e) {
+            } catch (Exception e) {
                 log.error("[AUTH-OTP] Failed to send OTP email to {}: {}", email, e.getMessage());
             }
         });
