@@ -19,36 +19,51 @@ import java.util.Map;
 public class EmailTestController {
 
     private final JavaMailSender brevoSender;
+    private final JavaMailSender mailjetSender;
     
     @Value("${mail.sender1.from}")
     private String brevoFromAddress;
 
-    public EmailTestController(@Qualifier("brevoMailSender") JavaMailSender brevoSender) {
+    @Value("${spring.mail.from}")
+    private String mailjetFromAddress;
+
+    public EmailTestController(@Qualifier("brevoMailSender") JavaMailSender brevoSender,
+                               @Qualifier("mailjetMailSender") JavaMailSender mailjetSender) {
         this.brevoSender = brevoSender;
+        this.mailjetSender = mailjetSender;
     }
 
     @GetMapping("/email")
-    public ResponseEntity<Map<String, String>> testEmail(@RequestParam String to) {
+    public ResponseEntity<Map<String, String>> testEmail(@RequestParam String to,
+                                                         @RequestParam(defaultValue = "brevo") String provider) {
         try {
+            boolean useMailjet = "mailjet".equalsIgnoreCase(provider);
+            JavaMailSender selectedSender = useMailjet ? mailjetSender : brevoSender;
+            String fromAddress = useMailjet ? mailjetFromAddress : brevoFromAddress;
+
             SimpleMailMessage message = new SimpleMailMessage();
-            message.setFrom(brevoFromAddress);
+            message.setFrom(fromAddress);
             message.setTo(to);
-            message.setSubject("Test Email from LLBurger");
+            message.setSubject("Test Email from LLBurger (" + (useMailjet ? "MAILJET" : "BREVO") + ")");
             message.setText("This is a test email. If you see this, SMTP is working correctly.");
             
-            brevoSender.send(message);
+            selectedSender.send(message);
             
             return ResponseEntity.ok(Map.of(
                     "status", "success",
                     "message", "Email sent successfully to " + to,
-                    "from", brevoFromAddress
+                    "provider", useMailjet ? "mailjet" : "brevo",
+                    "from", fromAddress
             ));
         } catch (Exception e) {
+            boolean useMailjet = "mailjet".equalsIgnoreCase(provider);
+            String fromAddress = useMailjet ? mailjetFromAddress : brevoFromAddress;
             return ResponseEntity.status(500).body(Map.of(
                     "status", "error",
                     "message", e.getMessage(),
                     "cause", e.getCause() != null ? e.getCause().toString() : "none",
-                    "from", brevoFromAddress
+                    "provider", useMailjet ? "mailjet" : "brevo",
+                    "from", fromAddress
             ));
         }
     }
