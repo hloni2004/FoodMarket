@@ -59,7 +59,7 @@ public class ChatService {
             throw new IllegalArgumentException("Message cannot be empty");
         }
         if (!aiEnabled) {
-            return Mono.error(new IllegalStateException("AI chat functionality is disabled"));
+            return Mono.error(new IllegalStateException("AI chat functionality is disabled: HF_TOKEN environment variable not configured"));
         }
 
         String menuContext = buildMenuContext();
@@ -96,7 +96,8 @@ public class ChatService {
         try {
             JsonNode root = objectMapper.readTree(responseBody);
             if (root.hasNonNull("error")) {
-                throw new IllegalStateException("AI provider returned an error");
+                String providerError = root.path("error").asText("unknown error");
+                throw new IllegalStateException("AI provider returned an error: " + providerError);
             }
             String content = "";
             if (root.isArray() && !root.isEmpty()) {
