@@ -15,6 +15,8 @@ import org.springframework.web.reactive.function.client.WebClientResponseExcepti
 import reactor.core.publisher.Mono;
 
 import java.text.NumberFormat;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Locale;
 
@@ -31,25 +33,34 @@ public class ChatService {
     private final WebClient webClient;
     private final ObjectMapper objectMapper;
     private final ProductRepository productRepository;
-    private final String endpoint;
-    private final String hfToken;
+    private final String azureEndpoint;
+    private final String azureDeployment;
+    private final String azureApiVersion;
+    private final String azureApiKey;
     private final boolean aiEnabled;
     private final int menuContextLimit;
 
     public ChatService(WebClient.Builder webClientBuilder,
                        ProductRepository productRepository,
                        ObjectMapper objectMapper,
-                       @Value("${ai.chat.endpoint:https://api-inference.huggingface.co/models/mistralai/Mistral-7B-Instruct-v0.2}") String endpoint,
-                       @Value("${HF_TOKEN:}") String hfToken,
+                       @Value("${ai.chat.azure.endpoint:}") String azureEndpoint,
+                       @Value("${ai.chat.azure.deployment:}") String azureDeployment,
+                       @Value("${ai.chat.azure.api-version:2025-01-01-preview}") String azureApiVersion,
+                       @Value("${ai.chat.azure.api-key:}") String azureApiKey,
                        @Value("${ai.chat.menu-context-limit:8}") int menuContextLimit) {
         this.webClient = webClientBuilder.build();
         this.productRepository = productRepository;
         this.objectMapper = objectMapper;
-        this.endpoint = endpoint;
-        this.hfToken = hfToken == null ? "" : hfToken.trim();
-        this.aiEnabled = !this.hfToken.isBlank();
+        this.azureEndpoint = azureEndpoint == null ? "" : azureEndpoint.trim();
+        this.azureDeployment = azureDeployment == null ? "" : azureDeployment.trim();
+        this.azureApiVersion = azureApiVersion == null ? "" : azureApiVersion.trim();
+        this.azureApiKey = azureApiKey == null ? "" : azureApiKey.trim();
+        this.aiEnabled = !this.azureEndpoint.isBlank()
+                && !this.azureDeployment.isBlank()
+                && !this.azureApiVersion.isBlank()
+                && !this.azureApiKey.isBlank();
         if (!aiEnabled) {
-            log.warn("[CHAT] HF_TOKEN not configured; AI chat functionality is disabled.");
+            log.warn("[CHAT] Azure OpenAI chat config missing; AI chat functionality is disabled.");
         }
         this.menuContextLimit = menuContextLimit;
     }
@@ -59,20 +70,25 @@ public class ChatService {
             throw new IllegalArgumentException("Message cannot be empty");
         }
         if (!aiEnabled) {
-            return Mono.error(new IllegalStateException("AI chat functionality is disabled: HF_TOKEN environment variable not configured"));
+            return Mono.error(new IllegalStateException("AI chat functionality is disabled: Azure OpenAI environment variables not configured"));
         }
 
         String menuContext = buildMenuContext();
+        String endpoint = buildAzureChatEndpoint();
 
         String payload;
         try {
             payload = objectMapper.createObjectNode()
-                    .put("inputs", SYSTEM_PROMPT
-                            + "\n\nCurrent menu snapshot:\n"
-                            + menuContext
-                            + "\n\nUser: "
-                            + message
-                            + "\nAssistant:")
+                    .putArray("messages")
+                    .addObject()
+                    .put("role", "system")
+                    .put("content", SYSTEM_PROMPT + "\n\nCurrent menu snapshot:\n" + menuContext)
+                    .parent()
+                    .addObject()
+                    .put("role", "user")
+                    .put("content", message)
+                    .parent()
+                    .parent()
                     .toString();
         } catch (Exception ex) {
             return Mono.error(new IllegalStateException("Unable to prepare AI request"));
@@ -80,7 +96,7 @@ public class ChatService {
 
         return webClient.post()
                 .uri(endpoint)
-                .header(HttpHeaders.AUTHORIZATION, "Bearer " + hfToken)
+                .header("api-key", azureApiKey)
                 .contentType(MediaType.APPLICATION_JSON)
                 .bodyValue(payload)
                 .retrieve()
@@ -96,15 +112,11 @@ public class ChatService {
         try {
             JsonNode root = objectMapper.readTree(responseBody);
             if (root.hasNonNull("error")) {
-                String providerError = root.path("error").asText("unknown error");
+                JsonNode errorNode = root.path("error");
+                String providerError = errorNode.path("message").asText(errorNode.asText("unknown error"));
                 throw new IllegalStateException("AI provider returned an error: " + providerError);
             }
-            String content = "";
-            if (root.isArray() && !root.isEmpty()) {
-                content = root.path(0).path("generated_text").asText("");
-            } else if (root.isObject()) {
-                content = root.path("generated_text").asText("");
-            }
+            String content = root.path("choices").path(0).path("message").path("content").asText("");
             if (content.isBlank()) {
                 throw new IllegalStateException("AI provider returned an empty response");
             }
@@ -114,6 +126,18 @@ public class ChatService {
         } catch (Exception ex) {
             throw new IllegalStateException("Unable to parse AI response");
         }
+    }
+
+    private String buildAzureChatEndpoint() {
+        String normalizedEndpoint = azureEndpoint.endsWith("/")
+                ? azureEndpoint.substring(0, azureEndpoint.length() - 1)
+                : azureEndpoint;
+        String encodedApiVersion = URLEncoder.encode(azureApiVersion, StandardCharsets.UTF_8);
+        return normalizedEndpoint
+                + "/openai/deployments/"
+                + azureDeployment
+                + "/chat/completions?api-version="
+                + encodedApiVersion;
     }
 
     private String buildMenuContext() {
