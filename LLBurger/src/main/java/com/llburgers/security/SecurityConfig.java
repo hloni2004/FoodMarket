@@ -96,6 +96,7 @@ public class SecurityConfig {
 
                 // ── Public: business status (read-only) ─────────────────────
                 .requestMatchers(HttpMethod.GET, "/api/business-status/**").permitAll()
+                .requestMatchers(HttpMethod.POST, "/api/chat").permitAll()
 
                 // ── Public: WebSocket ───────────────────────────────────────
                 .requestMatchers("/ws/**").permitAll()
