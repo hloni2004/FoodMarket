@@ -37,7 +37,7 @@ public class ChatController {
                 .onErrorResume(IllegalStateException.class, ex -> {
                     log.warn("[CHAT] Chat provider failure: {}", ex.getMessage());
                     return Mono.just(ResponseEntity.status(HttpStatus.BAD_GATEWAY)
-                            .body(Map.of("error", "Chat service is temporarily unavailable. Please try again.")));
+                            .body((Object) Map.of("error", "Chat service is temporarily unavailable. Please try again.")));
                 });
     }
 }
