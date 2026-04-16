@@ -13,6 +13,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import reactor.core.publisher.Mono;
 
 import java.util.Map;
 
@@ -30,13 +31,13 @@ public class ChatController {
     }
 
     @PostMapping
-    public ResponseEntity<?> chat(@Valid @RequestBody ChatRequest request) {
-        try {
-            return ResponseEntity.ok(new ChatResponse(chatService.chat(request.message())));
-        } catch (IllegalStateException ex) {
-            log.warn("[CHAT] Chat provider failure: {}", ex.getMessage());
-            return ResponseEntity.status(HttpStatus.BAD_GATEWAY)
-                    .body(Map.of("error", "Chat service is temporarily unavailable. Please try again."));
-        }
+    public Mono<ResponseEntity<?>> chat(@Valid @RequestBody ChatRequest request) {
+        return chatService.chat(request.message())
+                .map(reply -> ResponseEntity.ok((Object) new ChatResponse(reply)))
+                .onErrorResume(IllegalStateException.class, ex -> {
+                    log.warn("[CHAT] Chat provider failure: {}", ex.getMessage());
+                    return Mono.just(ResponseEntity.status(HttpStatus.BAD_GATEWAY)
+                            .body(Map.of("error", "Chat service is temporarily unavailable. Please try again.")));
+                });
     }
 }

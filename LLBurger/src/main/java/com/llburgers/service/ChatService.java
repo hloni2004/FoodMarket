@@ -10,6 +10,7 @@ import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.web.reactive.function.client.WebClientResponseException;
+import reactor.core.publisher.Mono;
 
 import java.text.NumberFormat;
 import java.util.List;
@@ -43,18 +44,18 @@ public class ChatService {
         this.webClient = webClientBuilder.baseUrl(baseUrl).build();
         this.productRepository = productRepository;
         this.objectMapper = objectMapper;
+        if (apiKey == null || apiKey.isBlank()) {
+            throw new IllegalStateException("AI chat service is not configured: missing API key");
+        }
         this.apiKey = apiKey;
         this.model = model;
         this.temperature = temperature;
         this.menuContextLimit = menuContextLimit;
     }
 
-    public String chat(String message) {
+    public Mono<String> chat(String message) {
         if (message == null || message.isBlank()) {
             throw new IllegalArgumentException("Message cannot be empty");
-        }
-        if (apiKey == null || apiKey.isBlank()) {
-            throw new IllegalStateException("AI chat service is not configured");
         }
 
         String menuContext = buildMenuContext();
@@ -73,26 +74,21 @@ public class ChatService {
                                     .put("content", message)))
                     .toString();
         } catch (Exception ex) {
-            throw new IllegalStateException("Unable to prepare AI request");
+            return Mono.error(new IllegalStateException("Unable to prepare AI request"));
         }
 
-        String responseBody;
-        try {
-            responseBody = webClient.post()
-                    .uri("/chat/completions")
-                    .header(HttpHeaders.AUTHORIZATION, "Bearer " + apiKey)
-                    .contentType(MediaType.APPLICATION_JSON)
-                    .bodyValue(payload)
-                    .retrieve()
-                    .bodyToMono(String.class)
-                    .block();
-        } catch (WebClientResponseException ex) {
-            throw new IllegalStateException("AI provider request failed with status " + ex.getStatusCode().value());
-        } catch (Exception ex) {
-            throw new IllegalStateException("Unable to reach AI provider");
-        }
-
-        return extractReply(responseBody);
+        return webClient.post()
+                .uri("/chat/completions")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + apiKey)
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(payload)
+                .retrieve()
+                .bodyToMono(String.class)
+                .map(this::extractReply)
+                .onErrorMap(WebClientResponseException.class, ex ->
+                        new IllegalStateException("AI provider request failed with status " + ex.getStatusCode().value()))
+                .onErrorMap(ex -> !(ex instanceof IllegalStateException),
+                        ex -> new IllegalStateException("Unable to reach AI provider"));
     }
 
     private String extractReply(String responseBody) {
