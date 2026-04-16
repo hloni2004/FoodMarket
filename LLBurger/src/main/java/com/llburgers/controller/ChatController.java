@@ -33,11 +33,11 @@ public class ChatController {
     @PostMapping
     public Mono<ResponseEntity<?>> chat(@Valid @RequestBody ChatRequest request) {
         return chatService.chat(request.message())
-                .map(reply -> ResponseEntity.ok((Object) new ChatResponse(reply)))
+                .<ResponseEntity<?>>map(reply -> ResponseEntity.ok(new ChatResponse(reply)))
                 .onErrorResume(IllegalStateException.class, ex -> {
                     log.warn("[CHAT] Chat provider failure: {}", ex.getMessage());
                     return Mono.just(ResponseEntity.status(HttpStatus.BAD_GATEWAY)
-                            .body((Object) Map.of("error", "Chat service is temporarily unavailable. Please try again.")));
+                            .body(Map.of("error", "Chat service is temporarily unavailable. Please try again.")));
                 });
     }
 }
