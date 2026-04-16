@@ -2,6 +2,8 @@ package com.llburgers.service;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.llburgers.domain.Product;
 import com.llburgers.repository.ProductRepository;
 import org.slf4j.Logger;
@@ -78,18 +80,15 @@ public class ChatService {
 
         String payload;
         try {
-            payload = objectMapper.createObjectNode()
-                    .putArray("messages")
-                    .addObject()
+            ObjectNode requestBody = objectMapper.createObjectNode();
+            ArrayNode messages = requestBody.putArray("messages");
+            messages.addObject()
                     .put("role", "system")
-                    .put("content", SYSTEM_PROMPT + "\n\nCurrent menu snapshot:\n" + menuContext)
-                    .parent()
-                    .addObject()
+                    .put("content", SYSTEM_PROMPT + "\n\nCurrent menu snapshot:\n" + menuContext);
+            messages.addObject()
                     .put("role", "user")
-                    .put("content", message)
-                    .parent()
-                    .parent()
-                    .toString();
+                    .put("content", message);
+            payload = requestBody.toString();
         } catch (Exception ex) {
             return Mono.error(new IllegalStateException("Unable to prepare AI request"));
         }
