@@ -4,6 +4,8 @@ import com.llburgers.dto.ChatRequest;
 import com.llburgers.dto.ChatResponse;
 import com.llburgers.service.ChatService;
 import jakarta.validation.Valid;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.CrossOrigin;
@@ -19,6 +21,8 @@ import java.util.Map;
 @CrossOrigin
 public class ChatController {
 
+    private static final Logger log = LoggerFactory.getLogger(ChatController.class);
+
     private final ChatService chatService;
 
     public ChatController(ChatService chatService) {
@@ -30,7 +34,9 @@ public class ChatController {
         try {
             return ResponseEntity.ok(new ChatResponse(chatService.chat(request.message())));
         } catch (IllegalStateException ex) {
-            return ResponseEntity.status(HttpStatus.BAD_GATEWAY).body(Map.of("error", ex.getMessage()));
+            log.warn("[CHAT] Chat provider failure: {}", ex.getMessage());
+            return ResponseEntity.status(HttpStatus.BAD_GATEWAY)
+                    .body(Map.of("error", "Chat service is temporarily unavailable. Please try again."));
         }
     }
 }

@@ -11,7 +11,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.web.reactive.function.client.WebClientResponseException;
 
+import java.text.NumberFormat;
 import java.util.List;
+import java.util.Locale;
 
 @Service
 public class ChatService {
@@ -27,18 +29,24 @@ public class ChatService {
     private final ProductRepository productRepository;
     private final String apiKey;
     private final String model;
+    private final double temperature;
+    private final int menuContextLimit;
 
     public ChatService(WebClient.Builder webClientBuilder,
                        ProductRepository productRepository,
                        ObjectMapper objectMapper,
                        @Value("${ai.chat.base-url:https://router.huggingface.co/v1}") String baseUrl,
                        @Value("${ai.chat.api-key:}") String apiKey,
-                       @Value("${ai.chat.model:moonshotai/Kimi-K2-Instruct-0905}") String model) {
+                       @Value("${ai.chat.model:moonshotai/Kimi-K2-Instruct-0905}") String model,
+                       @Value("${ai.chat.temperature:0.5}") double temperature,
+                       @Value("${ai.chat.menu-context-limit:8}") int menuContextLimit) {
         this.webClient = webClientBuilder.baseUrl(baseUrl).build();
         this.productRepository = productRepository;
         this.objectMapper = objectMapper;
         this.apiKey = apiKey;
         this.model = model;
+        this.temperature = temperature;
+        this.menuContextLimit = menuContextLimit;
     }
 
     public String chat(String message) {
@@ -55,7 +63,7 @@ public class ChatService {
         try {
             payload = objectMapper.createObjectNode()
                     .put("model", model)
-                    .put("temperature", 0.5)
+                    .put("temperature", temperature)
                     .set("messages", objectMapper.createArrayNode()
                             .add(objectMapper.createObjectNode()
                                     .put("role", "system")
@@ -109,15 +117,16 @@ public class ChatService {
             return "No menu items are currently available.";
         }
 
+        NumberFormat currencyFormatter = NumberFormat.getCurrencyInstance(Locale.US);
         StringBuilder builder = new StringBuilder();
         products.stream()
-                .limit(8)
+                .limit(menuContextLimit)
                 .forEach(product -> builder.append("- ")
                         .append(product.getName())
                         .append(" (")
                         .append(product.getCategory())
                         .append(") - ")
-                        .append(product.getPrice())
+                        .append(currencyFormatter.format(product.getPrice()))
                         .append('\n'));
         return builder.toString().trim();
     }
