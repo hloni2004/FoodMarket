@@ -4,6 +4,8 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.llburgers.domain.Product;
 import com.llburgers.repository.ProductRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -19,6 +21,7 @@ import java.util.Locale;
 @Service
 public class ChatService {
 
+    private static final Logger log = LoggerFactory.getLogger(ChatService.class);
     private static final String SYSTEM_PROMPT = """
             You are an AI assistant for an online food ordering platform.
             Help users choose meals, answer questions, and provide recommendations based on budget and preferences.
@@ -28,28 +31,26 @@ public class ChatService {
     private final WebClient webClient;
     private final ObjectMapper objectMapper;
     private final ProductRepository productRepository;
-    private final String apiKey;
-    private final String model;
-    private final double temperature;
+    private final String endpoint;
+    private final String hfToken;
+    private final boolean aiEnabled;
     private final int menuContextLimit;
 
     public ChatService(WebClient.Builder webClientBuilder,
                        ProductRepository productRepository,
                        ObjectMapper objectMapper,
-                       @Value("${ai.chat.base-url:https://router.huggingface.co/v1}") String baseUrl,
-                       @Value("${ai.chat.api-key:}") String apiKey,
-                       @Value("${ai.chat.model:moonshotai/Kimi-K2-Instruct-0905}") String model,
-                       @Value("${ai.chat.temperature:0.5}") double temperature,
+                       @Value("${ai.chat.endpoint:https://api-inference.huggingface.co/models/mistralai/Mistral-7B-Instruct-v0.2}") String endpoint,
+                       @Value("${HF_TOKEN:}") String hfToken,
                        @Value("${ai.chat.menu-context-limit:8}") int menuContextLimit) {
-        this.webClient = webClientBuilder.baseUrl(baseUrl).build();
+        this.webClient = webClientBuilder.build();
         this.productRepository = productRepository;
         this.objectMapper = objectMapper;
-        if (apiKey == null || apiKey.isBlank()) {
-            throw new IllegalStateException("AI chat service is not configured: missing API key");
+        this.endpoint = endpoint;
+        this.hfToken = hfToken == null ? "" : hfToken.trim();
+        this.aiEnabled = !this.hfToken.isBlank();
+        if (!aiEnabled) {
+            log.warn("[CHAT] HF_TOKEN not configured; AI chat functionality is disabled.");
         }
-        this.apiKey = apiKey;
-        this.model = model;
-        this.temperature = temperature;
         this.menuContextLimit = menuContextLimit;
     }
 
@@ -57,29 +58,29 @@ public class ChatService {
         if (message == null || message.isBlank()) {
             throw new IllegalArgumentException("Message cannot be empty");
         }
+        if (!aiEnabled) {
+            return Mono.error(new IllegalStateException("AI chat functionality is disabled: HF_TOKEN environment variable not configured"));
+        }
 
         String menuContext = buildMenuContext();
 
         String payload;
         try {
             payload = objectMapper.createObjectNode()
-                    .put("model", model)
-                    .put("temperature", temperature)
-                    .set("messages", objectMapper.createArrayNode()
-                            .add(objectMapper.createObjectNode()
-                                    .put("role", "system")
-                                    .put("content", SYSTEM_PROMPT + "\n\nCurrent menu snapshot:\n" + menuContext))
-                            .add(objectMapper.createObjectNode()
-                                    .put("role", "user")
-                                    .put("content", message)))
+                    .put("inputs", SYSTEM_PROMPT
+                            + "\n\nCurrent menu snapshot:\n"
+                            + menuContext
+                            + "\n\nUser: "
+                            + message
+                            + "\nAssistant:")
                     .toString();
         } catch (Exception ex) {
             return Mono.error(new IllegalStateException("Unable to prepare AI request"));
         }
 
         return webClient.post()
-                .uri("/chat/completions")
-                .header(HttpHeaders.AUTHORIZATION, "Bearer " + apiKey)
+                .uri(endpoint)
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + hfToken)
                 .contentType(MediaType.APPLICATION_JSON)
                 .bodyValue(payload)
                 .retrieve()
@@ -94,8 +95,16 @@ public class ChatService {
     private String extractReply(String responseBody) {
         try {
             JsonNode root = objectMapper.readTree(responseBody);
-            JsonNode contentNode = root.path("choices").path(0).path("message").path("content");
-            String content = contentNode.asText("");
+            if (root.hasNonNull("error")) {
+                String providerError = root.path("error").asText("unknown error");
+                throw new IllegalStateException("AI provider returned an error: " + providerError);
+            }
+            String content = "";
+            if (root.isArray() && !root.isEmpty()) {
+                content = root.path(0).path("generated_text").asText("");
+            } else if (root.isObject()) {
+                content = root.path("generated_text").asText("");
+            }
             if (content.isBlank()) {
                 throw new IllegalStateException("AI provider returned an empty response");
             }
