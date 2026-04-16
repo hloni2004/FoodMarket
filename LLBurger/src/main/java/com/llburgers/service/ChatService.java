@@ -22,7 +22,6 @@ import java.util.Locale;
 public class ChatService {
 
     private static final Logger log = LoggerFactory.getLogger(ChatService.class);
-    private static final String DEFAULT_HF_ENDPOINT = "https://api-inference.huggingface.co/models/mistralai/Mistral-7B-Instruct-v0.2";
     private static final String SYSTEM_PROMPT = """
             You are an AI assistant for an online food ordering platform.
             Help users choose meals, answer questions, and provide recommendations based on budget and preferences.
@@ -32,6 +31,7 @@ public class ChatService {
     private final WebClient webClient;
     private final ObjectMapper objectMapper;
     private final ProductRepository productRepository;
+    private final String endpoint;
     private final String hfToken;
     private final boolean aiEnabled;
     private final int menuContextLimit;
@@ -39,12 +39,13 @@ public class ChatService {
     public ChatService(WebClient.Builder webClientBuilder,
                        ProductRepository productRepository,
                        ObjectMapper objectMapper,
-                       @Value("${ai.chat.endpoint:" + DEFAULT_HF_ENDPOINT + "}") String endpoint,
+                       @Value("${ai.chat.endpoint:https://api-inference.huggingface.co/models/mistralai/Mistral-7B-Instruct-v0.2}") String endpoint,
                        @Value("${HF_TOKEN:}") String hfToken,
                        @Value("${ai.chat.menu-context-limit:8}") int menuContextLimit) {
-        this.webClient = webClientBuilder.baseUrl(endpoint).build();
+        this.webClient = webClientBuilder.build();
         this.productRepository = productRepository;
         this.objectMapper = objectMapper;
+        this.endpoint = endpoint;
         this.hfToken = hfToken == null ? "" : hfToken.trim();
         this.aiEnabled = !this.hfToken.isBlank();
         if (!aiEnabled) {
@@ -78,7 +79,7 @@ public class ChatService {
         }
 
         return webClient.post()
-                .uri("")
+                .uri(endpoint)
                 .header(HttpHeaders.AUTHORIZATION, "Bearer " + hfToken)
                 .contentType(MediaType.APPLICATION_JSON)
                 .bodyValue(payload)
