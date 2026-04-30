@@ -163,9 +163,9 @@ public class WebAuthnService {
         }
 
         User user = userRepository.findByEmail(email.toLowerCase().trim())
-            .orElseThrow(() -> new IllegalArgumentException("Invalid email or credentials."));
+            .orElseThrow(() -> new WebAuthnAuthenticationException("Invalid email or credentials."));
         if (!user.isActive()) {
-            throw new IllegalArgumentException("Invalid email or credentials.");
+            throw new WebAuthnAuthenticationException("Invalid email or credentials.");
         }
 
         List<BiometricCredential> credentials = biometricCredentialRepository.findAllByUser(user);
@@ -200,14 +200,19 @@ public class WebAuthnService {
             throw new IllegalArgumentException("Credential ID is required.");
         }
 
-        ChallengeRecord record = consumeChallenge(request.challengeId(), ChallengeType.AUTHENTICATION, null);
+        ChallengeRecord record;
+        try {
+            record = consumeChallenge(request.challengeId(), ChallengeType.AUTHENTICATION, null);
+        } catch (IllegalArgumentException ex) {
+            throw new WebAuthnAuthenticationException(ex.getMessage());
+        }
 
         BiometricCredential credential = biometricCredentialRepository
             .findByCredentialId(request.credentialId())
-            .orElseThrow(() -> new IllegalArgumentException("Invalid credential."));
+            .orElseThrow(() -> new WebAuthnAuthenticationException("Invalid credential."));
 
         if (record.userId() != null && !record.userId().equals(credential.getUser().getId())) {
-            throw new IllegalArgumentException("Credential does not match this login session.");
+            throw new WebAuthnAuthenticationException("Credential does not match this login session.");
         }
 
         byte[] credentialId = decodeBase64Url(request.credentialId());
@@ -253,7 +258,10 @@ public class WebAuthnService {
         AuthenticationData authenticationData = webAuthnManager.validate(authenticationRequest, parameters);
         long newCounter = authenticationData.getAuthenticatorData().getSignCount();
         if (newCounter != 0 && newCounter <= credential.getSignatureCount()) {
-            throw new IllegalArgumentException("Potential credential replay detected.");
+            log.warn("[WEBAUTHN-REPLAY] userId={}, credentialId={}",
+                credential.getUser().getId(),
+                credential.getCredentialId());
+            throw new WebAuthnAuthenticationException("Potential credential replay detected.");
         }
         if (newCounter > credential.getSignatureCount()) {
             credential.setSignatureCount(newCounter);

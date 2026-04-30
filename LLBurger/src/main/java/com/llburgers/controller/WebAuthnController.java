@@ -7,6 +7,7 @@ import com.llburgers.dto.WebAuthnDto;
 import com.llburgers.repository.UserRepository;
 import com.llburgers.security.JwtService;
 import com.llburgers.security.RefreshTokenService;
+import com.llburgers.service.WebAuthnAuthenticationException;
 import com.llburgers.service.WebAuthnService;
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletResponse;
@@ -80,11 +81,10 @@ public class WebAuthnController {
     public ResponseEntity<?> loginOptions(@RequestBody WebAuthnDto.AuthenticationOptionsRequest request) {
         try {
             return ResponseEntity.ok(webAuthnService.startAuthentication(request.email()));
+        } catch (WebAuthnAuthenticationException ex) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(error(ex.getMessage()));
         } catch (IllegalArgumentException ex) {
-            HttpStatus status = "Invalid email or credentials.".equals(ex.getMessage())
-                ? HttpStatus.UNAUTHORIZED
-                : HttpStatus.BAD_REQUEST;
-            return ResponseEntity.status(status).body(error(ex.getMessage()));
+            return ResponseEntity.badRequest().body(error(ex.getMessage()));
         }
     }
 
@@ -107,9 +107,12 @@ public class WebAuthnController {
             addRefreshCookie(response, refreshToken);
 
             return ResponseEntity.ok(AuthResponse.of(accessToken, UserSummary.from(user)));
-        } catch (IllegalArgumentException ex) {
+        } catch (WebAuthnAuthenticationException ex) {
             log.warn("[WEBAUTHN-LOGIN] {}", ex.getMessage());
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(error(ex.getMessage()));
+        } catch (IllegalArgumentException ex) {
+            log.warn("[WEBAUTHN-LOGIN] {}", ex.getMessage());
+            return ResponseEntity.badRequest().body(error(ex.getMessage()));
         }
     }
 
