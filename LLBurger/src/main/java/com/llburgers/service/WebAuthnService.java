@@ -16,10 +16,9 @@ import com.webauthn4j.data.RegistrationRequest;
 import com.webauthn4j.data.attestation.authenticator.AAGUID;
 import com.webauthn4j.data.attestation.authenticator.AttestedCredentialData;
 import com.webauthn4j.data.attestation.authenticator.COSEKey;
-import com.webauthn4j.data.attestation.authenticator.EC2COSEKey;
-import com.webauthn4j.data.attestation.authenticator.RSACOSEKey;
 import com.webauthn4j.data.client.Origin;
 import com.webauthn4j.data.client.challenge.DefaultChallenge;
+import com.webauthn4j.converter.util.ObjectConverter;
 import com.webauthn4j.server.ServerProperty;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -27,12 +26,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.nio.charset.StandardCharsets;
-import java.security.KeyFactory;
-import java.security.PublicKey;
 import java.security.SecureRandom;
-import java.security.interfaces.ECPublicKey;
-import java.security.interfaces.RSAPublicKey;
-import java.security.spec.X509EncodedKeySpec;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Base64;
@@ -52,6 +46,7 @@ public class WebAuthnService {
     private final UserRepository userRepository;
     private final BiometricCredentialRepository biometricCredentialRepository;
     private final WebAuthnManager webAuthnManager;
+    private final ObjectConverter objectConverter;
     private final SecureRandom secureRandom;
     private final Map<String, ChallengeRecord> challengeStore = new ConcurrentHashMap<>();
     private final String rpId;
@@ -66,6 +61,7 @@ public class WebAuthnService {
         this.userRepository = userRepository;
         this.biometricCredentialRepository = biometricCredentialRepository;
         this.webAuthnManager = WebAuthnManager.createNonStrictWebAuthnManager();
+        this.objectConverter = new ObjectConverter();
         this.secureRandom = new SecureRandom();
         this.rpId = rpId;
         this.rpName = rpName;
@@ -144,7 +140,7 @@ public class WebAuthnService {
         }
 
         String publicKey = Base64.getEncoder().encodeToString(
-            credentialData.getCOSEKey().getPublicKey().getEncoded()
+            objectConverter.getCborConverter().writeValueAsBytes(credentialData.getCOSEKey())
         );
         long signCount = registrationData.getAttestationObject()
             .getAuthenticatorData()
@@ -222,8 +218,10 @@ public class WebAuthnService {
             ? null
             : decodeBase64Url(request.userHandle());
 
-        PublicKey publicKey = decodePublicKey(Base64.getDecoder().decode(credential.getPublicKey()));
-        COSEKey coseKey = toCoseKey(publicKey);
+        COSEKey coseKey = objectConverter.getCborConverter().readValue(
+            Base64.getDecoder().decode(credential.getPublicKey()),
+            COSEKey.class
+        );
         AttestedCredentialData attestedCredentialData = new AttestedCredentialData(
             AAGUID.ZERO,
             credentialId,
@@ -254,6 +252,9 @@ public class WebAuthnService {
 
         AuthenticationData authenticationData = webAuthnManager.validate(authenticationRequest, parameters);
         long newCounter = authenticationData.getAuthenticatorData().getSignCount();
+        if (newCounter != 0 && newCounter <= credential.getSignatureCount()) {
+            throw new IllegalArgumentException("Potential credential replay detected.");
+        }
         if (newCounter > credential.getSignatureCount()) {
             credential.setSignatureCount(newCounter);
             biometricCredentialRepository.save(credential);
@@ -299,29 +300,6 @@ public class WebAuthnService {
             throw new IllegalArgumentException("Missing required WebAuthn payload.");
         }
         return Base64.getUrlDecoder().decode(value);
-    }
-
-    private PublicKey decodePublicKey(byte[] encoded) {
-        try {
-            return KeyFactory.getInstance("EC").generatePublic(new X509EncodedKeySpec(encoded));
-        } catch (Exception ecError) {
-            try {
-                return KeyFactory.getInstance("RSA").generatePublic(new X509EncodedKeySpec(encoded));
-            } catch (Exception rsaError) {
-                log.warn("[WEBAUTHN] Unable to decode public key: {}", rsaError.getMessage());
-                throw new IllegalArgumentException("Unsupported credential key type.");
-            }
-        }
-    }
-
-    private COSEKey toCoseKey(PublicKey publicKey) {
-        if (publicKey instanceof ECPublicKey ecPublicKey) {
-            return EC2COSEKey.create(ecPublicKey);
-        }
-        if (publicKey instanceof RSAPublicKey rsaPublicKey) {
-            return RSACOSEKey.create(rsaPublicKey);
-        }
-        throw new IllegalArgumentException("Unsupported credential key type.");
     }
 
     private enum ChallengeType {

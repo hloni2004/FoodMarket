@@ -12,6 +12,7 @@ import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -34,15 +35,18 @@ public class WebAuthnController {
     private final WebAuthnService webAuthnService;
     private final JwtService jwtService;
     private final RefreshTokenService refreshTokenService;
+    private final boolean secureCookie;
 
     public WebAuthnController(UserRepository userRepository,
                               WebAuthnService webAuthnService,
                               JwtService jwtService,
-                              RefreshTokenService refreshTokenService) {
+                              RefreshTokenService refreshTokenService,
+                              @Value("${server.ssl.enabled:false}") boolean secureCookie) {
         this.userRepository = userRepository;
         this.webAuthnService = webAuthnService;
         this.jwtService = jwtService;
         this.refreshTokenService = refreshTokenService;
+        this.secureCookie = secureCookie;
     }
 
     @PostMapping("/register/options")
@@ -112,7 +116,7 @@ public class WebAuthnController {
     private void addRefreshCookie(HttpServletResponse response, String refreshToken) {
         Cookie cookie = new Cookie("refresh_token", refreshToken);
         cookie.setHttpOnly(true);
-        cookie.setSecure(false);          // set true in prod (HTTPS only)
+        cookie.setSecure(secureCookie);
         cookie.setPath("/api/auth");
         cookie.setMaxAge((int) (jwtService.getRefreshTokenExpirationMs() / 1000));
         cookie.setAttribute("SameSite", "Strict");
