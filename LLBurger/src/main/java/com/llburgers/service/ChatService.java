@@ -39,6 +39,11 @@ public class ChatService {
     private final String azureDeployment;
     private final String azureApiVersion;
     private final String azureApiKey;
+    private final String geminiEndpoint;
+    private final String geminiModel;
+    private final String geminiApiKey;
+    private final boolean azureEnabled;
+    private final boolean geminiEnabled;
     private final boolean aiEnabled;
     private final int menuContextLimit;
 
@@ -49,6 +54,9 @@ public class ChatService {
                        @Value("${ai.chat.azure.deployment:}") String azureDeployment,
                        @Value("${ai.chat.azure.api-version:2025-01-01-preview}") String azureApiVersion,
                        @Value("${ai.chat.azure.api-key:}") String azureApiKey,
+                       @Value("${ai.chat.gemini.endpoint:}") String geminiEndpoint,
+                       @Value("${ai.chat.gemini.model:}") String geminiModel,
+                       @Value("${ai.chat.gemini.api-key:}") String geminiApiKey,
                        @Value("${ai.chat.menu-context-limit:8}") int menuContextLimit) {
         this.webClient = webClientBuilder.build();
         this.productRepository = productRepository;
@@ -57,12 +65,22 @@ public class ChatService {
         this.azureDeployment = azureDeployment == null ? "" : azureDeployment.trim();
         this.azureApiVersion = azureApiVersion == null ? "" : azureApiVersion.trim();
         this.azureApiKey = azureApiKey == null ? "" : azureApiKey.trim();
-        this.aiEnabled = !this.azureEndpoint.isBlank()
+        this.geminiEndpoint = (geminiEndpoint == null || geminiEndpoint.isBlank())
+                ? "https://api.openai.google/v1"
+                : geminiEndpoint.trim();
+        this.geminiModel = geminiModel == null ? "" : geminiModel.trim();
+        this.geminiApiKey = geminiApiKey == null ? "" : geminiApiKey.trim();
+        this.azureEnabled = !this.azureEndpoint.isBlank()
                 && !this.azureDeployment.isBlank()
                 && !this.azureApiVersion.isBlank()
                 && !this.azureApiKey.isBlank();
+        this.geminiEnabled = !this.geminiModel.isBlank()
+                && !this.geminiApiKey.isBlank();
+        this.aiEnabled = this.azureEnabled || this.geminiEnabled;
         if (!aiEnabled) {
-            log.warn("[CHAT] Azure OpenAI chat config missing; AI chat functionality is disabled.");
+            log.warn("[CHAT] No AI chat provider is configured; AI chat functionality is disabled.");
+        } else if (azureEnabled && geminiEnabled) {
+            log.info("[CHAT] Both Azure and Gemini configured; using Gemini by default.");
         }
         this.menuContextLimit = menuContextLimit;
     }
@@ -72,10 +90,50 @@ public class ChatService {
             throw new IllegalArgumentException("Message cannot be empty");
         }
         if (!aiEnabled) {
-            return Mono.error(new IllegalStateException("AI chat functionality is disabled: Azure OpenAI environment variables not configured"));
+            return Mono.error(new IllegalStateException("AI chat functionality is disabled: no chat provider configured"));
         }
 
         String menuContext = buildMenuContext();
+        if (geminiEnabled) {
+            return chatWithGemini(message, menuContext);
+        }
+        return chatWithAzure(message, menuContext);
+    }
+
+    private Mono<String> chatWithGemini(String message, String menuContext) {
+        String endpoint = buildGeminiChatEndpoint();
+
+        String payload;
+        try {
+            ObjectNode requestBody = objectMapper.createObjectNode();
+            requestBody.put("model", geminiModel);
+            ArrayNode messages = requestBody.putArray("messages");
+            messages.addObject()
+                    .put("author", "system")
+                    .set("content", objectMapper.createObjectNode().put("text", SYSTEM_PROMPT + "\n\nCurrent menu snapshot:\n" + menuContext));
+            messages.addObject()
+                    .put("author", "user")
+                    .set("content", objectMapper.createObjectNode().put("text", message));
+            payload = requestBody.toString();
+        } catch (Exception ex) {
+            return Mono.error(new IllegalStateException("Unable to prepare AI request"));
+        }
+
+        return webClient.post()
+                .uri(endpoint)
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + geminiApiKey)
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(payload)
+                .retrieve()
+                .bodyToMono(String.class)
+                .map(this::extractGeminiReply)
+                .onErrorMap(WebClientResponseException.class, ex ->
+                        new IllegalStateException("AI provider request failed with status " + ex.getStatusCode().value()))
+                .onErrorMap(ex -> !(ex instanceof IllegalStateException),
+                        ex -> new IllegalStateException("Unable to reach AI provider"));
+    }
+
+    private Mono<String> chatWithAzure(String message, String menuContext) {
         String endpoint = buildAzureChatEndpoint();
 
         String payload;
@@ -105,6 +163,27 @@ public class ChatService {
                         new IllegalStateException("AI provider request failed with status " + ex.getStatusCode().value()))
                 .onErrorMap(ex -> !(ex instanceof IllegalStateException),
                         ex -> new IllegalStateException("Unable to reach AI provider"));
+    }
+
+    private String extractGeminiReply(String responseBody) {
+        try {
+            JsonNode root = objectMapper.readTree(responseBody);
+            if (root.hasNonNull("error")) {
+                JsonNode errorNode = root.path("error");
+                String providerError = errorNode.path("message").asText(errorNode.asText("unknown error"));
+                throw new IllegalStateException("AI provider returned an error: " + providerError);
+            }
+            JsonNode candidate = root.path("candidates").path(0);
+            String content = candidate.path("content").path("text").asText("");
+            if (content.isBlank()) {
+                throw new IllegalStateException("AI provider returned an empty response");
+            }
+            return content.trim();
+        } catch (IllegalStateException ex) {
+            throw ex;
+        } catch (Exception ex) {
+            throw new IllegalStateException("Unable to parse AI response");
+        }
     }
 
     private String extractReply(String responseBody) {
@@ -137,6 +216,13 @@ public class ChatService {
                 + azureDeployment
                 + "/chat/completions?api-version="
                 + encodedApiVersion;
+    }
+
+    private String buildGeminiChatEndpoint() {
+        String normalizedEndpoint = geminiEndpoint.endsWith("/")
+                ? geminiEndpoint.substring(0, geminiEndpoint.length() - 1)
+                : geminiEndpoint;
+        return normalizedEndpoint + "/v1/models/" + URLEncoder.encode(geminiModel, StandardCharsets.UTF_8) + ":generateMessage";
     }
 
     private String buildMenuContext() {
