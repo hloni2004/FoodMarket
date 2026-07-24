@@ -145,7 +145,7 @@ public class ChatService {
             .contentType(MediaType.APPLICATION_JSON)
             .bodyValue(payload)
             .exchangeToMono(resp -> {
-                int code = resp.rawStatusCode();
+                        int code = resp.statusCode().value();
                 if (resp.statusCode().is2xxSuccessful()) {
                 return resp.bodyToMono(String.class).map(this::extractGeminiReply);
                 }
