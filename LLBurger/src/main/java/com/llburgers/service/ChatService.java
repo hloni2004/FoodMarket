@@ -107,30 +107,73 @@ public class ChatService {
         try {
             ObjectNode requestBody = objectMapper.createObjectNode();
             requestBody.put("model", geminiModel);
+            // sensible defaults for Gemini
+            requestBody.put("temperature", 0.2);
+            requestBody.put("maxOutputTokens", 512);
+
             ArrayNode messages = requestBody.putArray("messages");
-            messages.addObject()
-                    .put("author", "system")
-                    .set("content", objectMapper.createObjectNode().put("text", SYSTEM_PROMPT + "\n\nCurrent menu snapshot:\n" + menuContext));
-            messages.addObject()
-                    .put("author", "user")
-                    .set("content", objectMapper.createObjectNode().put("text", message));
+
+            // Use an explicit system prompt for Gemini (do not alter global SYSTEM_PROMPT used by Azure)
+            String geminiSystemPrompt = "You are an AI assistant for an online burger ordering platform.\n\n"
+                + "Help customers:\n"
+                + "- choose burgers\n"
+                + "- compare meals\n"
+                + "- answer menu questions\n"
+                + "- recommend food\n"
+                + "- recommend based on budget\n"
+                + "- answer allergy questions when possible\n\n"
+                + "Keep responses short, friendly and helpful.";
+
+            ObjectNode sys = messages.addObject();
+            sys.put("author", "system");
+            ArrayNode sysContent = sys.putArray("content");
+            sysContent.addObject().put("type", "text").put("text", geminiSystemPrompt + "\n\nCurrent menu snapshot:\n" + menuContext);
+
+            ObjectNode user = messages.addObject();
+            user.put("author", "user");
+            ArrayNode userContent = user.putArray("content");
+            userContent.addObject().put("type", "text").put("text", message);
+
             payload = requestBody.toString();
         } catch (Exception ex) {
-            return Mono.error(new IllegalStateException("Unable to prepare AI request"));
+            return Mono.error(new IllegalStateException("Unable to prepare AI request for Gemini"));
         }
 
         return webClient.post()
-                .uri(endpoint)
-                .header(HttpHeaders.AUTHORIZATION, "Bearer " + geminiApiKey)
-                .contentType(MediaType.APPLICATION_JSON)
-                .bodyValue(payload)
-                .retrieve()
-                .bodyToMono(String.class)
-                .map(this::extractGeminiReply)
-                .onErrorMap(WebClientResponseException.class, ex ->
-                        new IllegalStateException("AI provider request failed with status " + ex.getStatusCode().value()))
-                .onErrorMap(ex -> !(ex instanceof IllegalStateException),
-                        ex -> new IllegalStateException("Unable to reach AI provider"));
+            .uri(endpoint)
+            .header(HttpHeaders.AUTHORIZATION, "Bearer " + geminiApiKey)
+            .contentType(MediaType.APPLICATION_JSON)
+            .bodyValue(payload)
+            .exchangeToMono(resp -> {
+                int code = resp.rawStatusCode();
+                if (resp.statusCode().is2xxSuccessful()) {
+                return resp.bodyToMono(String.class).map(this::extractGeminiReply);
+                }
+                if (code == 401) {
+                return resp.bodyToMono(String.class)
+                    .defaultIfEmpty("")
+                    .flatMap(body -> Mono.error(new IllegalStateException("401 Unauthorized: Invalid Gemini API key or missing permission" + (body.isBlank() ? "" : ": " + body))));
+                }
+                if (code == 403) {
+                return resp.bodyToMono(String.class)
+                    .defaultIfEmpty("")
+                    .flatMap(body -> Mono.error(new IllegalStateException("403 Forbidden: Access to the Gemini model is denied" + (body.isBlank() ? "" : ": " + body))));
+                }
+                if (code == 404) {
+                return resp.bodyToMono(String.class)
+                    .defaultIfEmpty("")
+                    .flatMap(body -> Mono.error(new IllegalStateException("404 Not Found: Gemini endpoint or model not found" + (body.isBlank() ? "" : ": " + body))));
+                }
+                if (code == 429) {
+                return resp.bodyToMono(String.class)
+                    .defaultIfEmpty("")
+                    .flatMap(body -> Mono.error(new IllegalStateException("429 Rate Limit: Too many requests to Gemini" + (body.isBlank() ? "" : ": " + body))));
+                }
+                return resp.bodyToMono(String.class)
+                    .defaultIfEmpty("")
+                    .flatMap(body -> Mono.error(new IllegalStateException("AI provider request failed with status " + code + (body.isBlank() ? "" : ": " + body))));
+            })
+            .onErrorMap(ex -> !(ex instanceof IllegalStateException), ex -> new IllegalStateException("Unable to reach AI provider"));
     }
 
     private Mono<String> chatWithAzure(String message, String menuContext) {
@@ -173,17 +216,63 @@ public class ChatService {
                 String providerError = errorNode.path("message").asText(errorNode.asText("unknown error"));
                 throw new IllegalStateException("AI provider returned an error: " + providerError);
             }
-            JsonNode candidate = root.path("candidates").path(0);
-            String content = candidate.path("content").path("text").asText("");
-            if (content.isBlank()) {
-                throw new IllegalStateException("AI provider returned an empty response");
+
+            // Prefer the documented candidates -> content[] -> text path
+            JsonNode candidates = root.path("candidates");
+            if (candidates.isArray() && candidates.size() > 0) {
+                JsonNode candidate = candidates.get(0);
+                JsonNode contentNode = candidate.path("content");
+                StringBuilder out = new StringBuilder();
+                if (contentNode.isArray()) {
+                    for (JsonNode part : contentNode) {
+                        if (part.has("text")) {
+                            out.append(part.path("text").asText(""));
+                        } else if (part.has("type") && part.has("text")) {
+                            out.append(part.path("text").asText(""));
+                        } else {
+                            // fallback: collect any textual fields
+                            if (part.isObject()) {
+                                part.fields().forEachRemaining(e -> {
+                                    if (e.getValue().isTextual()) out.append(e.getValue().asText()).append(' ');
+                                });
+                            }
+                        }
+                    }
+                }
+                String candidateText = out.toString().trim();
+                if (!candidateText.isBlank()) return candidateText;
             }
-            return content.trim();
+
+            // Generic fallback: walk the JSON tree for the first text field
+            JsonNode textNode = findFirstTextNode(root);
+            if (textNode != null && textNode.isTextual() && !textNode.asText().isBlank()) {
+                return textNode.asText().trim();
+            }
+
+            throw new IllegalStateException("AI provider returned an empty response");
         } catch (IllegalStateException ex) {
             throw ex;
         } catch (Exception ex) {
             throw new IllegalStateException("Unable to parse AI response");
         }
+    }
+
+    private JsonNode findFirstTextNode(JsonNode root) {
+        if (root == null) return null;
+        if (root.isTextual()) return root;
+        if (root.isObject()) {
+            for (java.util.Iterator<java.util.Map.Entry<String, JsonNode>> it = root.fields(); it.hasNext(); ) {
+                java.util.Map.Entry<String, JsonNode> e = it.next();
+                JsonNode found = findFirstTextNode(e.getValue());
+                if (found != null) return found;
+            }
+        } else if (root.isArray()) {
+            for (JsonNode el : root) {
+                JsonNode found = findFirstTextNode(el);
+                if (found != null) return found;
+            }
+        }
+        return null;
     }
 
     private String extractReply(String responseBody) {
@@ -222,6 +311,10 @@ public class ChatService {
         String normalizedEndpoint = geminiEndpoint.endsWith("/")
                 ? geminiEndpoint.substring(0, geminiEndpoint.length() - 1)
                 : geminiEndpoint;
+        // allow callers to provide an endpoint that already contains /v1
+        if (normalizedEndpoint.endsWith("/v1")) {
+            return normalizedEndpoint + "/models/" + URLEncoder.encode(geminiModel, StandardCharsets.UTF_8) + ":generateMessage";
+        }
         return normalizedEndpoint + "/v1/models/" + URLEncoder.encode(geminiModel, StandardCharsets.UTF_8) + ":generateMessage";
     }
 
