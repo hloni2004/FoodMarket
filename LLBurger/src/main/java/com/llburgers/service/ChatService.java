@@ -199,11 +199,21 @@ public class ChatService {
                 .header("api-key", azureApiKey)
                 .contentType(MediaType.APPLICATION_JSON)
                 .bodyValue(payload)
-                .retrieve()
-                .bodyToMono(String.class)
-                .map(this::extractReply)
-                .onErrorMap(WebClientResponseException.class, ex ->
-                        new IllegalStateException("AI provider request failed with status " + ex.getStatusCode().value()))
+                .exchangeToMono(resp -> {
+                    int code = resp.statusCode().value();
+                    return resp.bodyToMono(String.class)
+                            .defaultIfEmpty("")
+                            .flatMap(body -> {
+                                if (resp.statusCode().is2xxSuccessful()) {
+                                    return Mono.just(body).map(this::extractReply);
+                                }
+                                String errorMessage = "AI provider request failed with status " + code;
+                                if (!body.isBlank()) {
+                                    errorMessage += ": " + body;
+                                }
+                                return Mono.error(new IllegalStateException(errorMessage));
+                            });
+                })
                 .onErrorMap(ex -> !(ex instanceof IllegalStateException),
                         ex -> new IllegalStateException("Unable to reach AI provider"));
     }
